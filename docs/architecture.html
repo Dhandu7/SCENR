@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SCENR — System Architecture</title>
+<style>
+  :root{
+    --text-primary:#0B1220; --text-secondary:#51596A; --text-muted:#8A93A3;
+    --surface-0:#FFFFFF; --surface-1:#F6F8FD; --surface-2:#EEF2FB;
+    --border:#E2E8F5; --border-strong:#C3D0E8;
+    --accent:#1D4ED8; --accent-2:#4F86F7;
+    --font-sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --text-primary:#E8ECF6; --text-secondary:#AEB7C9; --text-muted:#7E8798;
+      --surface-0:#0E1420; --surface-1:#141C2B; --surface-2:#1B2536;
+      --border:#28324a; --border-strong:#3a4763;
+      --accent:#5B8CFF; --accent-2:#7AA2FF;
+    }
+    body{background:#0B111C;}
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--surface-0);color:var(--text-primary);font-family:var(--font-sans);line-height:1.55;}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 22px 64px;}
+  header h1{font-size:26px;margin:0 0 4px;letter-spacing:-.2px;}
+  header p{margin:0;color:var(--text-secondary);font-size:14px;}
+  .brand{color:var(--accent);font-weight:800;}
+  .diagram-card{margin:22px 0 8px;padding:8px;background:var(--surface-1);border:1px solid var(--border);border-radius:14px;overflow-x:auto;}
+  #scenr-root{min-width:1040px;}
+  .hint{font-size:12.5px;color:var(--text-muted);margin:6px 2px 0;}
+  .layout{display:grid;grid-template-columns:1fr 400px;gap:20px;margin-top:22px;}
+  @media (max-width:940px){.layout{grid-template-columns:1fr;}}
+  .panel{position:sticky;top:16px;align-self:start;background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:18px 18px 20px;}
+  .panel .ttl{font-size:18px;font-weight:800;margin:0 0 6px;}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;}
+  .chip{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--border-strong);color:var(--text-secondary);}
+  .chip.tech{font-family:var(--font-mono);}
+  .chip.t0{background:rgba(29,78,216,.12);border-color:var(--accent);color:var(--accent);}
+  .chip.t1{background:rgba(79,134,247,.12);border-color:var(--accent-2);color:var(--accent-2);}
+  .chip.t2{color:var(--text-muted);}
+  .panel p{font-size:14px;color:var(--text-secondary);margin:0 0 12px;}
+  .panel h4{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin:16px 0 6px;}
+  .panel ul{margin:0 0 4px;padding-left:18px;}
+  .panel li{font-size:13.5px;color:var(--text-secondary);margin:4px 0;}
+  .panel code{font-family:var(--font-mono);font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--text-primary);}
+  section.deep{margin-top:34px;border-top:2px solid var(--border);padding-top:20px;}
+  section.deep h2{font-size:20px;margin:0 0 4px;}
+  section.deep .sub{color:var(--text-secondary);font-size:13.5px;margin:0 0 14px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media (max-width:760px){.grid2{grid-template-columns:1fr;}}
+  .block{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .block h3{font-size:14px;margin:0 0 8px;color:var(--accent);}
+  .block ul{margin:0;padding-left:18px;}
+  .block li{font-size:13.5px;color:var(--text-secondary);margin:5px 0;}
+  .block code{font-family:var(--font-mono);font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--text-primary);}
+  footer{margin-top:34px;color:var(--text-muted);font-size:12px;}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="brand">SCENR</span> — System Architecture</h1>
+    <p>Microservice topology (MVC within each service). Boxes are colored by importance; the reel-generation path is numbered ①→⑥. Click any box for detail.</p>
+  </header>
+
+  <div class="diagram-card">
+    <h2 class="sr-only">SCENR microservice architecture diagram with clients, gateway, core services, data and ML infrastructure, and external providers.</h2>
+    <div id="scenr-root"></div>
+  </div>
+  <p class="hint">Tip: horizontally scroll the diagram on narrow screens. Selecting a component updates the panel below.</p>
+
+  <div class="layout">
+    <div class="diagram-notes">
+      <section class="deep" style="margin-top:6px;border-top:none;padding-top:0">
+        <h2>Reading the map</h2>
+        <p class="sub" style="margin-bottom:16px">Five layers, top to bottom. Fast CRUD lives up top; async, GPU-heavy work lives in the Creation and Intelligence rows; shared state sits in Data/ML; third parties sit at the bottom.</p>
+        <div class="grid2">
+          <div class="block"><h3>Trip domain (row 1)</h3><ul>
+            <li>Stateless request/response + realtime.</li>
+            <li>Your always-on, cheap-to-scale tier.</li>
+            <li>Auth, Trip, Invite, Ingestion, Pool.</li></ul></div>
+          <div class="block"><h3>Creation domain (row 2)</h3><ul>
+            <li>Async, queue-driven, GPU-backed.</li>
+            <li>Orchestrator → Pipeline → Render.</li>
+            <li>Scales independently of the API.</li></ul></div>
+          <div class="block"><h3>Intelligence domain (row 3)</h3><ul>
+            <li>Model-serving, called by the pipeline.</li>
+            <li>Theme, Music, Caption, Insights.</li>
+            <li>Offline Research feeds Theme (async).</li></ul></div>
+          <div class="block"><h3>Build order by tier</h3><ul>
+            <li><b>Critical</b> boxes = walking skeleton first.</li>
+            <li><b>High</b> = working → good.</li>
+            <li><b>Supporting</b> = polish, can lag.</li></ul></div>
+        </div>
+      </section>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+  <section class="deep">
+    <h2>API Gateway / BFF — deep dive</h2>
+    <p class="sub">Kong at the edge · Apollo Federation GraphQL BFF · thin REST for the appless path. Stateless, owns no domain data.</p>
+    <div class="grid2">
+      <div class="block">
+        <h3>Responsibilities</h3>
+        <ul>
+          <li>Single entry point for the mobile app and the appless web uploader; hides service topology from clients.</li>
+          <li>Edge concerns: TLS termination, routing, request/response transforms, API versioning, WAF + bot protection (public join links).</li>
+          <li>AuthN/Z: validates JWTs against the Auth service <code>JWKS</code>; authorizes the WebSocket handshake.</li>
+          <li>Rate limiting + <b>quota pre-checks</b> — calls Quota &amp; Billing before admitting <code>startGeneration</code>.</li>
+          <li>BFF aggregation: composes many subgraph calls into one client payload; response caching for read-heavy queries.</li>
+          <li>Upload brokering: hands back <b>presigned URLs</b> so media never flows through the gateway.</li>
+          <li>Observability: distributed tracing, metrics, structured access logs.</li>
+        </ul>
+        <h3>Explicitly NOT its job</h3>
+        <ul>
+          <li>No business logic, no domain persistence — that stays in each service.</li>
+          <li>No media bytes on the request path.</li>
+        </ul>
+      </div>
+      <div class="block">
+        <h3>Tech stack</h3>
+        <ul>
+          <li><b>Kong Gateway</b> (L7): routing, JWT/rate-limit/WAF plugins, canary, declarative config via <code>decK</code>.</li>
+          <li><b>Apollo Federation</b> (Node/NestJS subgraphs): one GraphQL schema stitched across Trip, Media Pool, Generation, Insights.</li>
+          <li><b>Thin REST edge</b> for appless: <code>join</code>, upload-session, contribute.</li>
+          <li><b>Redis</b>: distributed rate-limit counters + response/APQ cache.</li>
+          <li><b>Realtime</b>: GraphQL subscriptions / Cloudflare + Redis pub/sub for live pool &amp; progress.</li>
+          <li><b>OpenTelemetry</b> → tracing; Apollo Studio schema registry.</li>
+        </ul>
+        <h3>Key APIs &amp; events</h3>
+        <ul>
+          <li>GraphQL queries: <code>trip</code>, <code>mediaPool</code>, <code>generations</code>, <code>insights</code>.</li>
+          <li>Mutations: <code>createTrip</code>, <code>invite</code>, <code>requestUploadUrl</code>, <code>startGeneration</code>, <code>setCaption</code>.</li>
+          <li>Subscriptions: <code>mediaAdded</code>, <code>generationProgress</code>, <code>generationReady</code>.</li>
+          <li>Appless REST: <code>POST /join/:slug</code>, <code>POST /uploads</code>.</li>
+          <li>Consumes <code>generation.*</code> from the Orchestrator (via Redis/Kafka) to push to clients.</li>
+        </ul>
+      </div>
+      <div class="block">
+        <h3>Data ownership</h3>
+        <ul>
+          <li>Owns <b>no</b> domain data — fully stateless.</li>
+          <li>Ephemeral only: rate-limit counters, short-lived response cache, compiled GraphQL schema, JWKS keys.</li>
+          <li>Config as code (<code>decK</code> / schema registry); each service remains its own source of truth.</li>
+        </ul>
+      </div>
+      <div class="block">
+        <h3>How it scales</h3>
+        <ul>
+          <li>Stateless horizontal replicas behind an LB; autoscale on RPS/CPU. Kong data-plane scales apart from control plane.</li>
+          <li>Shared limit state in Redis, so any replica enforces the same quota.</li>
+          <li>GraphQL: persisted queries (APQ), <code>DataLoader</code> batching to kill N+1, edge caching of cacheable reads.</li>
+          <li><b>Uploads bypass the gateway</b> via presigned URLs — the #1 scale lever.</li>
+          <li>WebSockets fan out through Redis pub/sub (not sticky in-process sockets).</li>
+          <li>Resilience: circuit breakers, timeouts, bulkheads; shed load / serve cache on overload. Harder limits on public appless routes.</li>
+          <li>Global: CDN + regional gateway PoPs.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>SCENR architecture · generated for Aaryan Dhand · interactive HTML export</footer>
+</div>
+
+<script>
+(function(){
+  const NS="http://www.w3.org/2000/svg";
+  const W=1220,H=792, CL=64, CR=1200, CW=CR-CL;
+  const TIER={0:{bar:"#1D4ED8",fill:"#E8F0FF",lab:"Critical"},1:{bar:"#4F86F7",fill:"#F1F6FF",lab:"High"},2:{bar:"#94A3B8",fill:"#FFFFFF",lab:"Supporting"}};
+
+  // ---- component copy ----
+  const INFO={
+    "Mobile App":"Organizer-facing app: create trips, review the pooled media, trigger generation, and preview/export reels, posts, carousels and stories.",
+    "Appless Web Uploader":"No-download contributor page opened from a share link — drag-and-drop photos/videos straight into trip storage, optional name for attribution.",
+    "CDN + Realtime Edge":"Serves static assets and rendered media globally, and hosts the WebSocket layer pushing live-pool and generation-progress updates.",
+    "Auth & User":"Accounts, sessions, JWT/OAuth issuance, JWKS, and the plan flag. Source of truth for identity.",
+    "Trip Service":"Trip lifecycle — name, dates, destination, archive state, and the contributor roster.",
+    "Invite / Appless":"Signed join links + QR codes, appless contributor sessions, and attribution tokens.",
+    "Media Ingestion":"Brokers presigned direct-to-storage uploads: resumable chunking, type/size validation, malware and NSFW scanning.",
+    "Media Pool":"Unified media metadata, filters, favourites and per-contributor attribution; emits realtime pool updates.",
+    "Quota & Billing":"Enforces free/premium caps (uploads-per-trip, max 2 trips/month) and subscription state via Stripe/RevenueCat.",
+    "Generation Orchestrator":"Durable workflow that sequences the reel pipeline, fans out to the intelligence services, and holds the ~2-minute SLA.",
+    "Reel Pipeline Workers":"The core magic — collect → trim → sync → transitions. Scores clips, cuts to beats, and builds the edit decision list.",
+    "Render Service":"Composites the EDL with LUT, transitions, captions and (free-tier) watermark into final media on GPU.",
+    "Theme Intelligence":"Per-theme fingerprints (embeddings + LUT) and theme-fit scoring of the user's media.",
+    "Offline Research":"One-time, offline Apify + Pinterest harvest → derive portable seed queries → discard images. Never on the request path.",
+    "Music Service":"Waveform/beat detection, bring-your-own-MP3 sync, and the song-suggestion engine.",
+    "Caption Service":"Captions three ways — write-your-own, generate-from-content (VLM), or theme presets.",
+    "Insights / Analytics":"Trip insights: contribution breakdown, best material, generation history and post-share performance.",
+    "Postgres":"Relational source of truth for users, trips, media metadata and quotas.",
+    "Vector DB":"pgvector / Pinecone store for theme fingerprints and music-feature embeddings.",
+    "Object Storage":"S3 / GCS for raw uploads and rendered outputs.",
+    "Redis":"Cache, rate-limit counters, distributed locks, and pub/sub for realtime.",
+    "Message Queue":"Kafka / SQS backbone for async pipeline jobs and domain events.",
+    "GPU Pool":"CUDA workers for frame scoring, CLIP embedding and video render.",
+    "Payments":"Stripe + RevenueCat for subscriptions and receipts.",
+    "Push":"APNs / FCM delivery for 'your reel is ready' and re-engagement nudges.",
+    "Open Image APIs":"Unsplash / Pexels and friends — licensed sources for the production theme corpus (Phase C).",
+    "Licensed Music":"Rights-cleared catalog of in-app, beat-sync-ready tracks.",
+    "Social Export":"Instagram / TikTok share and export destinations."
+  };
+  const GATEWAY_DEEP=true; // API Gateway uses the deep section below
+
+  const root=document.getElementById("scenr-root");
+  const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  svg.setAttribute("width","100%");
+  svg.setAttribute("role","img");
+  svg.style.fontFamily="var(--font-sans)";
+  const ttl=document.createElementNS(NS,"title");ttl.textContent="SCENR microservice architecture";svg.appendChild(ttl);
+
+  const defs=document.createElementNS(NS,"defs");
+  defs.innerHTML='<marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1D4ED8"/></marker>'+
+                 '<marker id="ahg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94A3B8"/></marker>';
+  svg.appendChild(defs);
+
+  function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)if(a[k]!=="")e.setAttribute(k,a[k]);return e;}
+  function txt(x,y,s,o){o=o||{};const e=el("text",{x:x,y:y,"font-size":o.fs||12,"font-weight":o.fw||400,fill:o.fill||"var(--text-primary)","text-anchor":o.ta||"start"});if(o.ls)e.setAttribute("letter-spacing",o.ls);e.textContent=s;svg.appendChild(e);return e;}
+  function bandBg(y,h,label,ymid){
+    svg.appendChild(el("rect",{x:CL-10,y:y,width:CW+20,height:h,rx:12,fill:"var(--surface-2)",stroke:"var(--border)","stroke-width":1,opacity:.6}));
+    const e=el("text",{x:30,y:ymid,"font-size":11,"font-weight":700,fill:"var(--text-muted)","text-anchor":"middle","letter-spacing":1.5,transform:"rotate(-90 30 "+ymid+")"});
+    e.textContent=label;svg.appendChild(e);
+  }
+  let selected=null;
+  function box(x,y,w,h,d){
+    const g=el("g",{});g.style.cursor="pointer";g.setAttribute("tabindex","0");g.setAttribute("role","button");g.setAttribute("aria-label",d.t);
+    const tier=TIER[d.tier];
+    const rect=el("rect",{x:x,y:y,width:w,height:h,rx:9,fill:d.dashed?"var(--surface-0)":tier.fill,stroke:d.dashed?tier.bar:"var(--border-strong)","stroke-dasharray":d.dashed?"5 4":"","stroke-width":d.dashed?1.4:1.2});
+    g.appendChild(rect);
+    g.appendChild(el("rect",{x:x,y:y,width:5,height:h,rx:2.5,fill:tier.bar}));
+    const tt=el("text",{x:x+14,y:y+23,"font-size":12.5,"font-weight":700,fill:"var(--text-primary)"});tt.textContent=d.t;g.appendChild(tt);
+    const stt=el("text",{x:x+14,y:y+40,"font-size":9.8,"font-weight":500,fill:"var(--text-secondary)"});stt.textContent=d.tech;g.appendChild(stt);
+    if(d.n){g.appendChild(el("circle",{cx:x+w-15,cy:y+15,r:9,fill:"#1D4ED8"}));const nn=el("text",{x:x+w-15,y:y+18.5,"font-size":10.5,"font-weight":700,fill:"#fff","text-anchor":"middle"});nn.textContent=d.n;g.appendChild(nn);}
+    function pick(){ if(selected)selected.setAttribute("stroke-width","1.2"), selected.setAttribute("stroke",selected.getAttribute("data-ds")==="1"?tier.bar:"var(--border-strong)");
+      rect.setAttribute("data-ds",d.dashed?"1":"0"); rect.setAttribute("stroke","#1D4ED8"); rect.setAttribute("stroke-width","2.6"); selected=rect; showDetail(d); }
+    g.addEventListener("click",pick);
+    g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();pick();}});
+    svg.appendChild(g);
+    d._c={x:x+w/2,y:y,b:y+h,l:x,r:x+w};d._rect=rect;
+    return d;
+  }
+  function row(list,y,h,fixedW){
+    const n=list.length,gap=16;let w,x0;
+    if(fixedW){w=fixedW;const tot=n*w+(n-1)*gap;x0=CL+(CW-tot)/2;}else{w=(CW-(n-1)*gap)/n;x0=CL;}
+    list.forEach((d,i)=>box(x0+i*(w+gap),y,w,h,d));return list;
+  }
+  function arrow(x1,y1,x2,y2,g){svg.appendChild(el("path",{d:"M"+x1+","+y1+" L"+x2+","+y2,fill:"none",stroke:g?"#94A3B8":"#1D4ED8","stroke-width":g?1.4:1.8,"stroke-dasharray":g?"5 4":"","marker-end":g?"url(#ahg)":"url(#ah)"}));}
+
+  bandBg(74,72,"CLIENTS",110);
+  bandBg(166,72,"EDGE",202);
+  bandBg(258,236,"CORE SERVICES",376);
+  bandBg(512,72,"DATA / ML",548);
+  bandBg(604,72,"EXTERNAL",640);
+
+  const clients=row([{t:"Mobile App",tech:"React Native · Swift + Kotlin",tier:0,n:"1"},{t:"Appless Web Uploader",tech:"Next.js PWA",tier:0}],84,52,330);
+  const edge=row([{t:"API Gateway / BFF",tech:"Kong · GraphQL",tier:0,n:"2"},{t:"CDN + Realtime Edge",tech:"Cloudflare · WebSocket",tier:1}],176,52,330);
+  const r1=row([{t:"Auth & User",tech:"NestJS · JWT/OAuth",tier:1},{t:"Trip Service",tech:"NestJS · Postgres",tier:0},{t:"Invite / Appless",tech:"Node · signed links",tier:0},{t:"Media Ingestion",tech:"Go · presigned uploads",tier:0},{t:"Media Pool",tech:"Node · realtime sync",tier:0}],272,54,0);
+  const r2=row([{t:"Quota & Billing",tech:"Node · Stripe SDK",tier:1},{t:"Generation Orchestrator",tech:"Python · Temporal",tier:0,n:"3"},{t:"Reel Pipeline Workers",tech:"Python · FFmpeg/OpenCV",tier:0,n:"4"},{t:"Render Service",tech:"FFmpeg · GPU",tier:0,n:"5"},{t:"Notification",tech:"Node · APNs/FCM",tier:2}],346,54,0);
+  const r3=row([{t:"Theme Intelligence",tech:"Python · CLIP / pgvector",tier:1},{t:"Offline Research",tech:"Apify + Pinterest · 1×",tier:2,dashed:true},{t:"Music Service",tech:"Python · librosa",tier:1},{t:"Caption Service",tech:"Python · VLM / LLM",tier:2},{t:"Insights / Analytics",tech:"Python · dbt",tier:2}],420,54,0);
+  const dat=row([{t:"Postgres",tech:"Relational core",tier:0},{t:"Vector DB",tech:"pgvector / Pinecone",tier:1},{t:"Object Storage",tech:"S3 / GCS",tier:0},{t:"Redis",tech:"Cache + locks",tier:1},{t:"Message Queue",tech:"Kafka / SQS",tier:0},{t:"GPU Pool",tech:"CUDA · score/render",tier:0}],522,52,0);
+  const ext=row([{t:"Payments",tech:"Stripe · RevenueCat",tier:1},{t:"Push",tech:"APNs / FCM",tier:2},{t:"Open Image APIs",tech:"Unsplash · Pexels",tier:1},{t:"Licensed Music",tech:"Catalog + rights",tier:1},{t:"Social Export",tech:"Instagram · TikTok",tier:1,n:"6"}],614,52,0);
+
+  arrow(clients[0]._c.x,clients[0]._c.b,edge[0]._c.x,edge[0]._c.y);
+  arrow(clients[1]._c.x,clients[1]._c.b,edge[1]._c.x,edge[1]._c.y);
+  arrow(edge[0]._c.x,edge[0]._c.b,r1[1]._c.x,r1[1]._c.y);
+  arrow(edge[1]._c.x,edge[1]._c.b,r1[4]._c.x,r1[4]._c.y);
+  arrow(r1[1]._c.x,r1[1]._c.b,r2[1]._c.x,r2[1]._c.y);
+  arrow(r2[1]._c.r,r2[1]._c.y+27,r2[2]._c.l,r2[2]._c.y+27);
+  arrow(r2[2]._c.r,r2[2]._c.y+27,r2[3]._c.l,r2[3]._c.y+27);
+  [r3[0],r3[2],r3[3]].forEach(function(f){svg.appendChild(el("path",{d:"M"+f._c.x+","+f._c.y+" V412 H"+r2[2]._c.x+" V"+r2[2]._c.b,fill:"none",stroke:"#1D4ED8","stroke-width":1.4,"marker-end":"url(#ah)",opacity:.85}));});
+  arrow(r3[1]._c.l,r3[1]._c.y+27,r3[0]._c.r,r3[0]._c.y+27,true);
+  arrow(r3[2]._c.x,r3[2]._c.b,dat[2]._c.x,dat[2]._c.y);
+  arrow(r2[2]._c.x,r2[2]._c.b+2,dat[4]._c.x,dat[4]._c.y);
+  arrow(r3[0]._c.x,r3[0]._c.b,dat[1]._c.x,dat[1]._c.y,true);
+  arrow(r3[4]._c.x,r3[4]._c.b,dat[0]._c.x,dat[0]._c.y);
+  arrow(r2[3]._c.x+30,r2[3]._c.b,dat[5]._c.x,dat[5]._c.y);
+
+  const ly=52,lx=CL;
+  txt(lx,ly-14,"SCENR — microservice architecture",{fs:15,fw:800});
+  function chip(x,c,l){svg.appendChild(el("rect",{x:x,y:ly-9,width:12,height:12,rx:3,fill:c==='d'?'#FFFFFF':c,stroke:c==='d'?'#94A3B8':c,"stroke-dasharray":c==='d'?'3 3':''}));txt(x+18,ly+1,l,{fs:11,fill:"var(--text-secondary)"});}
+  chip(360,"#1D4ED8","Critical");chip(452,"#4F86F7","High");chip(534,"#94A3B8","Supporting");
+  svg.appendChild(el("path",{d:"M652,"+(ly-3)+" L676,"+(ly-3),stroke:"#1D4ED8","stroke-width":1.8,"marker-end":"url(#ah)"}));
+  txt(682,ly+1,"request / data flow",{fs:11,fill:"var(--text-secondary)"});
+  svg.appendChild(el("path",{d:"M828,"+(ly-3)+" L852,"+(ly-3),stroke:"#94A3B8","stroke-width":1.4,"stroke-dasharray":"5 4","marker-end":"url(#ahg)"}));
+  txt(858,ly+1,"offline / async",{fs:11,fill:"var(--text-secondary)"});
+  txt(978,ly+1,"① reel-generation path · click a box",{fs:11,fill:"var(--text-muted)"});
+
+  root.appendChild(svg);
+
+  // ---- detail panel ----
+  const panel=document.getElementById("panel");
+  function showDetail(d){
+    const tierLab=TIER[d.tier].lab;
+    let html='<p class="ttl">'+d.t+'</p><div class="chips">'+
+      '<span class="chip t'+d.tier+'">'+tierLab+'</span>'+
+      '<span class="chip tech">'+d.tech+'</span></div>'+
+      '<p>'+(INFO[d.t]||"")+'</p>';
+    if(d.t==="API Gateway / BFF"){
+      html+='<h4>See full breakdown</h4><ul>'+
+        '<li>Responsibilities, tech stack, APIs/events, data ownership and scaling are in the <b>deep-dive section below</b>.</li>'+
+        '<li>Key idea: stateless edge, owns no domain data, and <code>uploads bypass it</code> via presigned URLs.</li></ul>';
+    }
+    panel.innerHTML=html;
+  }
+  // default selection: API Gateway
+  edge[0]._rect.setAttribute("stroke","#1D4ED8");edge[0]._rect.setAttribute("stroke-width","2.6");selected=edge[0]._rect;
+  showDetail(edge[0]);
+})();
+</script>
+</body>
+</html>
