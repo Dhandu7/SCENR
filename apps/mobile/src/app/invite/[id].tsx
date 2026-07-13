@@ -11,6 +11,7 @@ export default function InviteScreen() {
   const [tripName, setTripName] = useState<string | null>(null)
   const [slug, setSlug] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -19,8 +20,14 @@ export default function InviteScreen() {
       .select("name, slug")
       .eq("id", id)
       .single()
-      .then(({ data }) => {
-        if (!isMounted || !data) return
+      .then(({ data, error }) => {
+        if (!isMounted) return
+        if (error || !data) {
+          setErrorMessage(error?.message ?? "Trip not found.")
+          setIsLoading(false)
+          return
+        }
+        setErrorMessage(null)
         setTripName(data.name)
         setSlug(data.slug)
         setIsLoading(false)
@@ -29,6 +36,14 @@ export default function InviteScreen() {
       isMounted = false
     }
   }, [id])
+
+  if (errorMessage) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.error}>{errorMessage}</Text>
+      </View>
+    )
+  }
 
   if (isLoading || !slug) {
     return (
@@ -67,4 +82,5 @@ const styles = StyleSheet.create({
   link: { fontSize: 14, color: "#1D4ED8" },
   primaryButton: { backgroundColor: "#1D4ED8", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 999, marginTop: 16 },
   primaryButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
+  error: { color: "#DC2626", textAlign: "center" },
 })
