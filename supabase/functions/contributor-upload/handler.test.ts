@@ -10,7 +10,6 @@ function baseDeps(overrides: Partial<ContributorUploadDeps> = {}): ContributorUp
     findContributorByToken: async () => ({ id: "c1", trip_id: "t1" }),
     countMediaItems: async () => 0,
     createSignedUploadUrl: async (path) => ({ signedUrl: `https://signed/${path}`, token: "tok" }),
-    createMediaItem: async () => ({ id: "m1" }),
     ...overrides,
   }
 }
@@ -61,7 +60,7 @@ Deno.test("returns 403 when the trip has reached its upload cap", async () => {
   assertEquals(result.body.error, "upload_cap_reached")
 })
 
-Deno.test("returns a signed upload URL and creates a media item on success", async () => {
+Deno.test("returns a signed upload URL on success", async () => {
   const result = await handleContributorUpload(
     baseDeps(),
     { session_token: "s1", file_name: "a.jpg", content_type: "image/jpeg", file_size: 100 },
@@ -72,7 +71,6 @@ Deno.test("returns a signed upload URL and creates a media item on success", asy
     upload_url: "https://signed/t1/generated-id-a.jpg",
     upload_token: "tok",
     storage_path: "t1/generated-id-a.jpg",
-    media_item_id: "m1",
   })
 })
 

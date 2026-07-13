@@ -32,7 +32,6 @@ export interface UploadRequestResponse {
   upload_url: string
   upload_token: string
   storage_path: string
-  media_item_id: string
 }
 
 export function requestUpload(params: {
@@ -46,5 +45,21 @@ export function requestUpload(params: {
     file_name: params.fileName,
     content_type: params.contentType,
     file_size: params.fileSize,
+  })
+}
+
+export interface ConfirmUploadResponse {
+  media_item_id: string
+}
+
+export function confirmUpload(params: {
+  sessionToken: string
+  storagePath: string
+  contentType: string
+}): Promise<ConfirmUploadResponse> {
+  return callFunction<ConfirmUploadResponse>("confirm-upload", {
+    session_token: params.sessionToken,
+    storage_path: params.storagePath,
+    content_type: params.contentType,
   })
 }

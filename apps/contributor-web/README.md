@@ -1,3 +1,12 @@
+## SCENR setup
+
+1. Copy `.env.example` to `.env.local` and fill in the values. `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are the project's public/safe Supabase URL and anon key, already listed in the repo root `.env.example` — just copy them over.
+2. This app's `/join/[slug]` page is what the mobile app's invite links point at, so run its dev server (`npm run dev`, port 3000) whenever you need to test an invite link from the mobile app.
+3. Contributor sign-in relies on Supabase's built-in email OTP, which works out of the box on the free tier for local dev — no extra email provider setup needed.
+4. Caveat: the mobile app's invite link uses `EXPO_PUBLIC_CONTRIBUTOR_WEB_URL=http://localhost:3000` by default, which won't resolve if scanned from a separate physical phone. That requires either your machine's LAN IP or a real deployment (planned for later in the project, see `docs/plan.md` Days 13–14).
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

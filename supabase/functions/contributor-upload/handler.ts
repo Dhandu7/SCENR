@@ -1,14 +1,7 @@
+import { ALLOWED_CONTENT_TYPES } from "../_shared/content-types.ts"
+
 export const MAX_UPLOADS_PER_TRIP = 50
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
-
-export const ALLOWED_CONTENT_TYPES: Record<string, "photo" | "video"> = {
-  "image/jpeg": "photo",
-  "image/png": "photo",
-  "image/heic": "photo",
-  "image/webp": "photo",
-  "video/mp4": "video",
-  "video/quicktime": "video",
-}
 
 function sanitizeFileName(fileName: string): string {
   const base = fileName.split(/[\\/]/).pop() ?? fileName
@@ -29,12 +22,6 @@ export interface ContributorUploadDeps {
   findContributorByToken(sessionToken: string): Promise<ContributorSummary | null>
   countMediaItems(tripId: string): Promise<number>
   createSignedUploadUrl(path: string): Promise<SignedUpload | null>
-  createMediaItem(row: {
-    trip_id: string
-    contributor_id: string
-    type: "photo" | "video"
-    storage_path: string
-  }): Promise<{ id: string } | null>
 }
 
 export interface UploadRequest {
@@ -84,23 +71,12 @@ export async function handleContributorUpload(
     return { status: 500, body: { error: "storage_signing_failed" } }
   }
 
-  const mediaItem = await deps.createMediaItem({
-    trip_id: contributor.trip_id,
-    contributor_id: contributor.id,
-    type: mediaType,
-    storage_path: storagePath,
-  })
-  if (!mediaItem) {
-    return { status: 500, body: { error: "media_item_create_failed" } }
-  }
-
   return {
     status: 200,
     body: {
       upload_url: signedUpload.signedUrl,
       upload_token: signedUpload.token,
       storage_path: storagePath,
-      media_item_id: mediaItem.id,
     },
   }
 }

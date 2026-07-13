@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { corsHeaders } from "../_shared/cors.ts"
-import { handleContributorUpload, type ContributorUploadDeps } from "./handler.ts"
+import { handleConfirmUpload, type ConfirmUploadDeps } from "./handler.ts"
 
-function buildDeps(): ContributorUploadDeps {
+function buildDeps(): ConfirmUploadDeps {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -17,16 +17,9 @@ function buildDeps(): ContributorUploadDeps {
         .maybeSingle()
       return data ?? null
     },
-    async countMediaItems(tripId) {
-      const { count } = await supabase
-        .from("media_items")
-        .select("id", { count: "exact", head: true })
-        .eq("trip_id", tripId)
-      return count ?? 0
-    },
-    async createSignedUploadUrl(path) {
-      const { data } = await supabase.storage.from("trip-media").createSignedUploadUrl(path)
-      return data ? { signedUrl: data.signedUrl, token: data.token } : null
+    async createMediaItem(row) {
+      const { data } = await supabase.from("media_items").insert(row).select("id").single()
+      return data ?? null
     },
   }
 }
@@ -43,7 +36,7 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => ({}))
-  const result = await handleContributorUpload(buildDeps(), body, () => crypto.randomUUID())
+  const result = await handleConfirmUpload(buildDeps(), body)
 
   return new Response(JSON.stringify(result.body), {
     status: result.status,

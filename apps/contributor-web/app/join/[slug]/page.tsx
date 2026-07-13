@@ -2,10 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { joinTrip, requestUpload, type JoinTripResponse } from "../../../lib/api"
+import { confirmUpload, joinTrip, requestUpload, type JoinTripResponse } from "../../../lib/api"
 import { supabase } from "../../../lib/supabase"
 
 type UploadState = "idle" | "uploading" | "done" | "error"
+
+function inferContentType(file: File): string {
+  if (file.type) return file.type
+  const lower = file.name.toLowerCase()
+  if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic"
+  return file.type
+}
 
 export default function JoinTripPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -18,8 +25,12 @@ export default function JoinTripPage() {
     const storageKey = `scenr_session_${slug}`
     const cached = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null
     if (cached) {
-      setSession(JSON.parse(cached))
-      return
+      try {
+        setSession(JSON.parse(cached))
+        return
+      } catch {
+        localStorage.removeItem(storageKey)
+      }
     }
     joinTrip(slug)
       .then((result) => {
@@ -34,16 +45,22 @@ export default function JoinTripPage() {
     setUploadState("uploading")
     setUploadError(null)
     try {
+      const contentType = inferContentType(file)
       const uploadRequest = await requestUpload({
         sessionToken: session.session_token,
         fileName: file.name,
-        contentType: file.type,
+        contentType,
         fileSize: file.size,
       })
       const { error } = await supabase.storage
         .from("trip-media")
         .uploadToSignedUrl(uploadRequest.storage_path, uploadRequest.upload_token, file)
       if (error) throw new Error(error.message)
+      await confirmUpload({
+        sessionToken: session.session_token,
+        storagePath: uploadRequest.storage_path,
+        contentType,
+      })
       setUploadState("done")
     } catch (error) {
       setUploadState("error")
