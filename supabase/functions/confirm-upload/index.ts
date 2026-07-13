@@ -1,22 +1,17 @@
-import { createClient } from "npm:@supabase/supabase-js@2"
-import { corsHeaders } from "../_shared/cors.ts"
-import { handleConfirmUpload, type ConfirmUploadDeps } from "./handler.ts"
+import { getServiceClient } from "../_shared/supabase-client.ts"
+import { serveJson } from "../_shared/serve-json.ts"
+import { findContributorByToken } from "../_shared/contributors.ts"
+import {
+  handleConfirmUpload,
+  type ConfirmUploadDeps,
+  type ConfirmUploadRequest,
+} from "./handler.ts"
 
 function buildDeps(): ConfirmUploadDeps {
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  )
+  const supabase = getServiceClient()
 
   return {
-    async findContributorByToken(sessionToken) {
-      const { data } = await supabase
-        .from("contributors")
-        .select("id, trip_id")
-        .eq("session_token", sessionToken)
-        .maybeSingle()
-      return data ?? null
-    },
+    findContributorByToken: (sessionToken) => findContributorByToken(supabase, sessionToken),
     async createMediaItem(row) {
       const { data } = await supabase.from("media_items").insert(row).select("id").single()
       return data ?? null
@@ -24,22 +19,4 @@ function buildDeps(): ConfirmUploadDeps {
   }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders })
-  }
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
-  }
-
-  const body = await req.json().catch(() => ({}))
-  const result = await handleConfirmUpload(buildDeps(), body)
-
-  return new Response(JSON.stringify(result.body), {
-    status: result.status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  })
-})
+serveJson<ConfirmUploadRequest>((body) => handleConfirmUpload(buildDeps(), body))

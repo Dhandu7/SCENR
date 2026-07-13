@@ -8,9 +8,7 @@ const CONTRIBUTOR_WEB_URL = process.env.EXPO_PUBLIC_CONTRIBUTOR_WEB_URL ?? "http
 
 export default function InviteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const [tripName, setTripName] = useState<string | null>(null)
-  const [slug, setSlug] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [trip, setTrip] = useState<{ name: string; slug: string } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -24,13 +22,10 @@ export default function InviteScreen() {
         if (!isMounted) return
         if (error || !data) {
           setErrorMessage(error?.message ?? "Trip not found.")
-          setIsLoading(false)
           return
         }
         setErrorMessage(null)
-        setTripName(data.name)
-        setSlug(data.slug)
-        setIsLoading(false)
+        setTrip({ name: data.name, slug: data.slug })
       })
     return () => {
       isMounted = false
@@ -45,7 +40,7 @@ export default function InviteScreen() {
     )
   }
 
-  if (isLoading || !slug) {
+  if (!trip) {
     return (
       <View style={styles.container}>
         <ActivityIndicator />
@@ -53,6 +48,7 @@ export default function InviteScreen() {
     )
   }
 
+  const { name: tripName, slug } = trip
   const inviteUrl = `${CONTRIBUTOR_WEB_URL}/join/${slug}`
 
   async function handleShare() {

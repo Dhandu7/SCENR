@@ -1,4 +1,5 @@
 import { ALLOWED_CONTENT_TYPES } from "../_shared/content-types.ts"
+import { type ContributorSummary } from "../_shared/contributors.ts"
 
 export const MAX_UPLOADS_PER_TRIP = 50
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
@@ -6,11 +7,6 @@ export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 function sanitizeFileName(fileName: string): string {
   const base = fileName.split(/[\\/]/).pop() ?? fileName
   return base.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "") || "file"
-}
-
-export interface ContributorSummary {
-  id: string
-  trip_id: string
 }
 
 export interface SignedUpload {

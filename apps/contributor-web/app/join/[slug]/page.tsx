@@ -7,11 +7,13 @@ import { supabase } from "../../../lib/supabase"
 
 type UploadState = "idle" | "uploading" | "done" | "error"
 
+// Browsers often report an empty `file.type` for HEIC/HEIF; fall back to the
+// extension so those uploads aren't rejected as missing a content type.
 function inferContentType(file: File): string {
   if (file.type) return file.type
   const lower = file.name.toLowerCase()
   if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic"
-  return file.type
+  return ""
 }
 
 export default function JoinTripPage() {

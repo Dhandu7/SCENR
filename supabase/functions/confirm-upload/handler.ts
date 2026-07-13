@@ -1,9 +1,5 @@
 import { ALLOWED_CONTENT_TYPES } from "../_shared/content-types.ts"
-
-export interface ContributorSummary {
-  id: string
-  trip_id: string
-}
+import { type ContributorSummary } from "../_shared/contributors.ts"
 
 export interface ConfirmUploadDeps {
   findContributorByToken(sessionToken: string): Promise<ContributorSummary | null>
