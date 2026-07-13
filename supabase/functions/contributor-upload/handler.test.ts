@@ -85,3 +85,13 @@ Deno.test("returns 500 when signing the upload URL fails", async () => {
   assertEquals(result.status, 500)
   assertEquals(result.body.error, "storage_signing_failed")
 })
+
+Deno.test("sanitizes a file name containing path traversal segments", async () => {
+  const result = await handleContributorUpload(
+    baseDeps(),
+    { session_token: "s1", file_name: "../../etc/passwd.jpg", content_type: "image/jpeg", file_size: 100 },
+    () => "generated-id",
+  )
+  assertEquals(result.status, 200)
+  assertEquals(result.body.storage_path, "t1/generated-id-passwd.jpg")
+})

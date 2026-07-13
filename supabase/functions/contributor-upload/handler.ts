@@ -10,6 +10,11 @@ export const ALLOWED_CONTENT_TYPES: Record<string, "photo" | "video"> = {
   "video/quicktime": "video",
 }
 
+function sanitizeFileName(fileName: string): string {
+  const base = fileName.split(/[\\/]/).pop() ?? fileName
+  return base.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "") || "file"
+}
+
 export interface ContributorSummary {
   id: string
   trip_id: string
@@ -73,7 +78,7 @@ export async function handleContributorUpload(
     return { status: 403, body: { error: "upload_cap_reached" } }
   }
 
-  const storagePath = `${contributor.trip_id}/${generateId()}-${file_name}`
+  const storagePath = `${contributor.trip_id}/${generateId()}-${sanitizeFileName(file_name)}`
   const signedUpload = await deps.createSignedUploadUrl(storagePath)
   if (!signedUpload) {
     return { status: 500, body: { error: "storage_signing_failed" } }
