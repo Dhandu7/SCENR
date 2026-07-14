@@ -95,5 +95,9 @@ export async function tagImage(imageUrl) {
   if (!text) {
     throw new Error(`Unexpected Anthropic response shape: ${JSON.stringify(body).slice(0, 500)}`)
   }
-  return JSON.parse(text)
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    throw new Error(`Could not parse tag response as JSON: ${error.message}. Raw text: ${text.slice(0, 500)}`)
+  }
 }
