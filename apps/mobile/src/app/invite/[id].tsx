@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { useLocalSearchParams } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { StyleSheet, Text, View, Pressable, Share, ActivityIndicator } from "react-native"
 import QRCode from "react-native-qrcode-svg"
 import { supabase } from "../../lib/supabase"
@@ -8,6 +8,7 @@ const CONTRIBUTOR_WEB_URL = process.env.EXPO_PUBLIC_CONTRIBUTOR_WEB_URL ?? "http
 
 export default function InviteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
   const [trip, setTrip] = useState<{ name: string; slug: string } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -66,6 +67,9 @@ export default function InviteScreen() {
       <Pressable style={styles.primaryButton} onPress={handleShare}>
         <Text style={styles.primaryButtonText}>Share invite</Text>
       </Pressable>
+      <Pressable style={styles.secondaryButton} onPress={() => router.push(`/pool/${id}`)}>
+        <Text style={styles.secondaryButtonText}>View pool</Text>
+      </Pressable>
     </View>
   )
 }
@@ -78,5 +82,14 @@ const styles = StyleSheet.create({
   link: { fontSize: 14, color: "#1D4ED8" },
   primaryButton: { backgroundColor: "#1D4ED8", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 999, marginTop: 16 },
   primaryButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: "#1D4ED8",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 999,
+    marginTop: 12,
+  },
+  secondaryButtonText: { color: "#1D4ED8", fontSize: 16, fontWeight: "700" },
   error: { color: "#DC2626", textAlign: "center" },
 })
