@@ -6,6 +6,12 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "cd apps/mobile && npx expo start --web"],
       "port": 8081
+    },
+    {
+      "name": "contributor-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd apps/contributor-web && npm run dev"],
+      "port": 3000
     }
   ]
 }

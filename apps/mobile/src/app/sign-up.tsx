@@ -60,15 +60,15 @@ export default function SignUpScreen() {
         </>
       ) : (
         <>
-          <Text style={styles.subtitle}>Enter the 6-digit code we sent to {email}</Text>
+          <Text style={styles.subtitle}>Enter the code we sent to {email}</Text>
           <TextInput
             style={styles.input}
-            placeholder="123456"
+            placeholder="Code"
             keyboardType="number-pad"
             value={code}
             onChangeText={setCode}
           />
-          <Pressable style={styles.primaryButton} onPress={handleVerifyCode} disabled={isSubmitting || code.trim().length < 6}>
+          <Pressable style={styles.primaryButton} onPress={handleVerifyCode} disabled={isSubmitting || !code.trim()}>
             {isSubmitting ? <ActivityIndicator color="white" /> : <Text style={styles.primaryButtonText}>Verify</Text>}
           </Pressable>
         </>
