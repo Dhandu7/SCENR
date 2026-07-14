@@ -1,0 +1,220 @@
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useLocalSearchParams } from "expo-router"
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
+import { supabase } from "../../lib/supabase"
+import { computePoolCounts, filterMediaItems, type PoolFilter, type PoolMediaItem } from "../../lib/pool-filters"
+
+interface MediaRow extends PoolMediaItem {
+  storage_path: string
+  duration_seconds: number | null
+  created_at: string
+}
+
+const FILTERS: { key: PoolFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "photos", label: "Photos" },
+  { key: "videos", label: "Videos" },
+  { key: "favourites", label: "★ Favourites" },
+]
+
+export default function PoolScreen() {
+  const { tripId } = useLocalSearchParams<{ tripId: string }>()
+  const [items, setItems] = useState<MediaRow[]>([])
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLive, setIsLive] = useState(false)
+  const [filter, setFilter] = useState<PoolFilter>("all")
+
+  const loadSignedUrl = useCallback(async (storagePath: string) => {
+    const { data } = await supabase.storage.from("trip-media").createSignedUrl(storagePath, 3600)
+    return data?.signedUrl ?? null
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadInitial() {
+      const { data } = await supabase
+        .from("media_items")
+        .select("id, type, storage_path, contributor_id, is_favourite, duration_seconds, created_at")
+        .eq("trip_id", tripId)
+        .order("created_at", { ascending: false })
+
+      if (!isMounted || !data) return
+      setItems(data as MediaRow[])
+      setIsLoading(false)
+
+      const urlEntries = await Promise.all(
+        data.map(async (item) => [item.id, await loadSignedUrl(item.storage_path)] as const),
+      )
+      if (!isMounted) return
+      setSignedUrls(Object.fromEntries(urlEntries.filter(([, url]) => url) as [string, string][]))
+    }
+
+    loadInitial()
+
+    const channel = supabase
+      .channel(`media_items:trip_id=eq.${tripId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "media_items", filter: `trip_id=eq.${tripId}` },
+        (payload) => {
+          const newItem = payload.new as MediaRow
+          setItems((current) => [newItem, ...current])
+          loadSignedUrl(newItem.storage_path).then((url) => {
+            if (url) setSignedUrls((current) => ({ ...current, [newItem.id]: url }))
+          })
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "media_items", filter: `trip_id=eq.${tripId}` },
+        (payload) => {
+          const updated = payload.new as MediaRow
+          setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+        },
+      )
+      .subscribe((status) => setIsLive(status === "SUBSCRIBED"))
+
+    return () => {
+      isMounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [tripId, loadSignedUrl])
+
+  const { itemCount, contributorCount } = useMemo(() => computePoolCounts(items), [items])
+  const filteredItems = useMemo(() => filterMediaItems(items, filter), [items, filter])
+
+  async function handleToggleFavourite(item: MediaRow) {
+    const nextValue = !item.is_favourite
+    setItems((current) => current.map((i) => (i.id === item.id ? { ...i, is_favourite: nextValue } : i)))
+    await supabase.from("media_items").update({ is_favourite: nextValue }).eq("id", item.id)
+  }
+
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator />
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerText}>
+            {itemCount} item{itemCount === 1 ? "" : "s"} · {contributorCount} contributor
+            {contributorCount === 1 ? "" : "s"}
+          </Text>
+          <View style={styles.liveBadge}>
+            <View style={[styles.liveDot, isLive ? styles.liveDotOn : styles.liveDotOff]} />
+            <Text style={styles.liveText}>{isLive ? "Live" : "Connecting…"}</Text>
+          </View>
+        </View>
+        <View style={styles.filterRow}>
+          {FILTERS.map((f) => (
+            <Pressable
+              key={f.key}
+              style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+              onPress={() => setFilter(f.key)}
+            >
+              <Text style={[styles.filterChipText, filter === f.key && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {items.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>No photos yet</Text>
+          <Text style={styles.emptySubtitle}>Waiting for your group to add photos and videos.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredItems}
+          numColumns={3}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.grid}
+          renderItem={({ item }) => (
+            <Pressable style={styles.tile} onPress={() => handleToggleFavourite(item)}>
+              {signedUrls[item.id] ? (
+                <Image source={{ uri: signedUrls[item.id] }} style={styles.tileImage} />
+              ) : (
+                <View style={[styles.tileImage, styles.tilePlaceholder]} />
+              )}
+              {item.type === "video" ? (
+                <View style={styles.videoBadge}>
+                  <Text style={styles.videoBadgeText}>
+                    {item.duration_seconds ? `${Math.round(item.duration_seconds)}s` : "▶"}
+                  </Text>
+                </View>
+              ) : null}
+              <Text style={styles.favouriteStar}>{item.is_favourite ? "★" : "☆"}</Text>
+            </Pressable>
+          )}
+        />
+      )}
+    </View>
+  )
+}
+
+const TILE_SIZE = 110
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 8 },
+  header: { padding: 16, gap: 12 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  headerText: { fontSize: 14, color: "#51596A", fontWeight: "600" },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  liveDotOn: { backgroundColor: "#16A34A" },
+  liveDotOff: { backgroundColor: "#94A3B8" },
+  liveText: { fontSize: 12, color: "#51596A" },
+  filterRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  filterChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#C3D0E8",
+  },
+  filterChipActive: { backgroundColor: "#1D4ED8", borderColor: "#1D4ED8" },
+  filterChipText: { fontSize: 13, color: "#1D4ED8", fontWeight: "600" },
+  filterChipTextActive: { color: "white" },
+  grid: { paddingHorizontal: 12, gap: 4 },
+  tile: {
+    width: TILE_SIZE,
+    height: TILE_SIZE,
+    margin: 2,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#EEF2FB",
+  },
+  tileImage: { width: "100%", height: "100%" },
+  tilePlaceholder: { backgroundColor: "#EEF2FB" },
+  videoBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    backgroundColor: "rgba(11,18,32,0.7)",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  videoBadgeText: { color: "white", fontSize: 10, fontWeight: "700" },
+  favouriteStar: { position: "absolute", top: 4, right: 4, fontSize: 16, color: "#FBBF24" },
+  emptyTitle: { fontSize: 18, fontWeight: "700" },
+  emptySubtitle: { fontSize: 14, color: "#51596A", textAlign: "center" },
+})
