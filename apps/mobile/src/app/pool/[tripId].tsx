@@ -12,6 +12,8 @@ import {
 import { supabase } from "../../lib/supabase"
 import { computePoolCounts, filterMediaItems, type PoolFilter, type PoolMediaItem } from "../../lib/pool-filters"
 
+type LiveStatus = "connecting" | "live" | "offline"
+
 interface MediaRow extends PoolMediaItem {
   storage_path: string
   duration_seconds: number | null
@@ -30,7 +32,7 @@ export default function PoolScreen() {
   const [items, setItems] = useState<MediaRow[]>([])
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [isLive, setIsLive] = useState(false)
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>("connecting")
   const [filter, setFilter] = useState<PoolFilter>("all")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -74,7 +76,7 @@ export default function PoolScreen() {
         { event: "INSERT", schema: "public", table: "media_items", filter: `trip_id=eq.${tripId}` },
         (payload) => {
           const newItem = payload.new as MediaRow
-          setItems((current) => [newItem, ...current])
+          setItems((current) => (current.some((item) => item.id === newItem.id) ? current : [newItem, ...current]))
           loadSignedUrl(newItem.storage_path).then((url) => {
             if (url) setSignedUrls((current) => ({ ...current, [newItem.id]: url }))
           })
@@ -88,7 +90,13 @@ export default function PoolScreen() {
           setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)))
         },
       )
-      .subscribe((status) => setIsLive(status === "SUBSCRIBED"))
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setLiveStatus("live")
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setLiveStatus("offline")
+        }
+      })
 
     return () => {
       isMounted = false
@@ -133,8 +141,15 @@ export default function PoolScreen() {
             {contributorCount === 1 ? "" : "s"}
           </Text>
           <View style={styles.liveBadge}>
-            <View style={[styles.liveDot, isLive ? styles.liveDotOn : styles.liveDotOff]} />
-            <Text style={styles.liveText}>{isLive ? "Live" : "Connecting…"}</Text>
+            <View
+              style={[
+                styles.liveDot,
+                liveStatus === "live" ? styles.liveDotOn : liveStatus === "offline" ? styles.liveDotOffline : styles.liveDotOff,
+              ]}
+            />
+            <Text style={styles.liveText}>
+              {liveStatus === "live" ? "Live" : liveStatus === "offline" ? "Offline" : "Connecting…"}
+            </Text>
           </View>
         </View>
         <View style={styles.filterRow}>
@@ -156,6 +171,11 @@ export default function PoolScreen() {
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>No photos yet</Text>
           <Text style={styles.emptySubtitle}>Waiting for your group to add photos and videos.</Text>
+        </View>
+      ) : filteredItems.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>Nothing here yet</Text>
+          <Text style={styles.emptySubtitle}>No items match this filter.</Text>
         </View>
       ) : (
         <FlatList
@@ -198,6 +218,7 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   liveDotOn: { backgroundColor: "#16A34A" },
   liveDotOff: { backgroundColor: "#94A3B8" },
+  liveDotOffline: { backgroundColor: "#DC2626" },
   liveText: { fontSize: 12, color: "#51596A" },
   filterRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   filterChip: {
