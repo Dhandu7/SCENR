@@ -32,6 +32,7 @@ export default function PoolScreen() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLive, setIsLive] = useState(false)
   const [filter, setFilter] = useState<PoolFilter>("all")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const loadSignedUrl = useCallback(async (storagePath: string) => {
     const { data } = await supabase.storage.from("trip-media").createSignedUrl(storagePath, 3600)
@@ -42,13 +43,18 @@ export default function PoolScreen() {
     let isMounted = true
 
     async function loadInitial() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("media_items")
         .select("id, type, storage_path, contributor_id, is_favourite, duration_seconds, created_at")
         .eq("trip_id", tripId)
         .order("created_at", { ascending: false })
 
-      if (!isMounted || !data) return
+      if (!isMounted) return
+      if (error || !data) {
+        setErrorMessage(error?.message ?? "Could not load this trip's media.")
+        setIsLoading(false)
+        return
+      }
       setItems(data as MediaRow[])
       setIsLoading(false)
 
@@ -96,7 +102,18 @@ export default function PoolScreen() {
   async function handleToggleFavourite(item: MediaRow) {
     const nextValue = !item.is_favourite
     setItems((current) => current.map((i) => (i.id === item.id ? { ...i, is_favourite: nextValue } : i)))
-    await supabase.from("media_items").update({ is_favourite: nextValue }).eq("id", item.id)
+    const { error } = await supabase.from("media_items").update({ is_favourite: nextValue }).eq("id", item.id)
+    if (error) {
+      setItems((current) => current.map((i) => (i.id === item.id ? { ...i, is_favourite: item.is_favourite } : i)))
+    }
+  }
+
+  if (errorMessage) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.error}>{errorMessage}</Text>
+      </View>
+    )
   }
 
   if (isLoading) {
@@ -217,4 +234,5 @@ const styles = StyleSheet.create({
   favouriteStar: { position: "absolute", top: 4, right: 4, fontSize: 16, color: "#FBBF24" },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptySubtitle: { fontSize: 14, color: "#51596A", textAlign: "center" },
+  error: { color: "#DC2626", textAlign: "center" },
 })
