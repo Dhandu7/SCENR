@@ -1,0 +1,12 @@
+{
+  "name": "theme-loader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node --env-file=../../.env index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
