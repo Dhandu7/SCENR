@@ -41,6 +41,21 @@ export default function PoolScreen() {
     return data?.signedUrl ?? null
   }, [])
 
+  const loadSignedUrls = useCallback(async (rows: MediaRow[]) => {
+    if (rows.length === 0) return {}
+    const { data } = await supabase.storage
+      .from("trip-media")
+      .createSignedUrls(rows.map((row) => row.storage_path), 3600)
+    if (!data) return {}
+    const pathToId = new Map(rows.map((row) => [row.storage_path, row.id]))
+    const result: Record<string, string> = {}
+    for (const entry of data) {
+      const id = pathToId.get(entry.path ?? "")
+      if (id && entry.signedUrl) result[id] = entry.signedUrl
+    }
+    return result
+  }, [])
+
   useEffect(() => {
     let isMounted = true
 
@@ -60,11 +75,9 @@ export default function PoolScreen() {
       setItems(data as MediaRow[])
       setIsLoading(false)
 
-      const urlEntries = await Promise.all(
-        data.map(async (item) => [item.id, await loadSignedUrl(item.storage_path)] as const),
-      )
+      const urls = await loadSignedUrls(data as MediaRow[])
       if (!isMounted) return
-      setSignedUrls(Object.fromEntries(urlEntries.filter(([, url]) => url) as [string, string][]))
+      setSignedUrls(urls)
     }
 
     loadInitial()
@@ -102,7 +115,7 @@ export default function PoolScreen() {
       isMounted = false
       supabase.removeChannel(channel)
     }
-  }, [tripId, loadSignedUrl])
+  }, [tripId, loadSignedUrl, loadSignedUrls])
 
   const { itemCount, contributorCount } = useMemo(() => computePoolCounts(items), [items])
   const filteredItems = useMemo(() => filterMediaItems(items, filter), [items, filter])
@@ -132,6 +145,25 @@ export default function PoolScreen() {
     )
   }
 
+  let poolContent
+  if (items.length === 0) {
+    poolContent = (
+      <View style={styles.centered}>
+        <Text style={styles.emptyTitle}>No photos yet</Text>
+        <Text style={styles.emptySubtitle}>Waiting for your group to add photos and videos.</Text>
+      </View>
+    )
+  } else if (filteredItems.length === 0) {
+    poolContent = (
+      <View style={styles.centered}>
+        <Text style={styles.emptyTitle}>Nothing here yet</Text>
+        <Text style={styles.emptySubtitle}>No items match this filter.</Text>
+      </View>
+    )
+  } else {
+    poolContent = renderPoolGrid(filteredItems, signedUrls, handleToggleFavourite)
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -141,15 +173,8 @@ export default function PoolScreen() {
             {contributorCount === 1 ? "" : "s"}
           </Text>
           <View style={styles.liveBadge}>
-            <View
-              style={[
-                styles.liveDot,
-                liveStatus === "live" ? styles.liveDotOn : liveStatus === "offline" ? styles.liveDotOffline : styles.liveDotOff,
-              ]}
-            />
-            <Text style={styles.liveText}>
-              {liveStatus === "live" ? "Live" : liveStatus === "offline" ? "Offline" : "Connecting…"}
-            </Text>
+            <View style={[styles.liveDot, LIVE_STATUS_META[liveStatus].dotStyle]} />
+            <Text style={styles.liveText}>{LIVE_STATUS_META[liveStatus].label}</Text>
           </View>
         </View>
         <View style={styles.filterRow}>
@@ -167,42 +192,40 @@ export default function PoolScreen() {
         </View>
       </View>
 
-      {items.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>No photos yet</Text>
-          <Text style={styles.emptySubtitle}>Waiting for your group to add photos and videos.</Text>
-        </View>
-      ) : filteredItems.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>Nothing here yet</Text>
-          <Text style={styles.emptySubtitle}>No items match this filter.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredItems}
-          numColumns={3}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.grid}
-          renderItem={({ item }) => (
-            <Pressable style={styles.tile} onPress={() => handleToggleFavourite(item)}>
-              {signedUrls[item.id] ? (
-                <Image source={{ uri: signedUrls[item.id] }} style={styles.tileImage} />
-              ) : (
-                <View style={[styles.tileImage, styles.tilePlaceholder]} />
-              )}
-              {item.type === "video" ? (
-                <View style={styles.videoBadge}>
-                  <Text style={styles.videoBadgeText}>
-                    {item.duration_seconds ? `${Math.round(item.duration_seconds)}s` : "▶"}
-                  </Text>
-                </View>
-              ) : null}
-              <Text style={styles.favouriteStar}>{item.is_favourite ? "★" : "☆"}</Text>
-            </Pressable>
-          )}
-        />
-      )}
+      {poolContent}
     </View>
+  )
+}
+
+function renderPoolGrid(
+  filteredItems: MediaRow[],
+  signedUrls: Record<string, string>,
+  handleToggleFavourite: (item: MediaRow) => void,
+) {
+  return (
+    <FlatList
+      data={filteredItems}
+      numColumns={3}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={styles.grid}
+      renderItem={({ item }) => (
+        <Pressable style={styles.tile} onPress={() => handleToggleFavourite(item)}>
+          {signedUrls[item.id] ? (
+            <Image source={{ uri: signedUrls[item.id] }} style={styles.tileImage} />
+          ) : (
+            <View style={styles.tileImage} />
+          )}
+          {item.type === "video" ? (
+            <View style={styles.videoBadge}>
+              <Text style={styles.videoBadgeText}>
+                {item.duration_seconds ? `${Math.round(item.duration_seconds)}s` : "▶"}
+              </Text>
+            </View>
+          ) : null}
+          <Text style={styles.favouriteStar}>{item.is_favourite ? "★" : "☆"}</Text>
+        </Pressable>
+      )}
+    />
   )
 }
 
@@ -241,7 +264,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEF2FB",
   },
   tileImage: { width: "100%", height: "100%" },
-  tilePlaceholder: { backgroundColor: "#EEF2FB" },
   videoBadge: {
     position: "absolute",
     bottom: 4,
@@ -257,3 +279,9 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 14, color: "#51596A", textAlign: "center" },
   error: { color: "#DC2626", textAlign: "center" },
 })
+
+const LIVE_STATUS_META: Record<LiveStatus, { dotStyle: object; label: string }> = {
+  live: { dotStyle: styles.liveDotOn, label: "Live" },
+  offline: { dotStyle: styles.liveDotOffline, label: "Offline" },
+  connecting: { dotStyle: styles.liveDotOff, label: "Connecting…" },
+}
