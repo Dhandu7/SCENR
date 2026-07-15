@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { extractFeatures, CONTENT_CATEGORIES } from "./extract-features.js"
+import { extractFeatures, CONTENT_CATEGORIES, normalizeMediaType } from "./extract-features.js"
 
 const pin = { id: "1", imageUrl: "https://example.com/a.jpg", description: "" }
 
@@ -56,4 +56,22 @@ test("CONTENT_CATEGORIES matches the fixed taxonomy", () => {
     "action_fit",
     "candid_funny",
   ])
+})
+
+test("normalizeMediaType passes through a supported type", () => {
+  assert.equal(normalizeMediaType("image/png"), "image/png")
+})
+
+test("normalizeMediaType strips a charset suffix and lowercases", () => {
+  assert.equal(normalizeMediaType("Image/JPEG; charset=binary"), "image/jpeg")
+})
+
+test("normalizeMediaType maps the nonstandard image/jpg to image/jpeg", () => {
+  assert.equal(normalizeMediaType("image/jpg"), "image/jpeg")
+})
+
+test("normalizeMediaType falls back to image/jpeg for missing or unrecognized types", () => {
+  assert.equal(normalizeMediaType(null), "image/jpeg")
+  assert.equal(normalizeMediaType(undefined), "image/jpeg")
+  assert.equal(normalizeMediaType("application/octet-stream"), "image/jpeg")
 })

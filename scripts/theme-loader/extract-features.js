@@ -61,7 +61,31 @@ export async function embedImage(imageUrl) {
   return embedding
 }
 
+const SUPPORTED_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+
+export function normalizeMediaType(contentType) {
+  const normalized = (contentType ?? "").split(";")[0].trim().toLowerCase()
+  if (SUPPORTED_MEDIA_TYPES.includes(normalized)) return normalized
+  if (normalized === "image/jpg") return "image/jpeg"
+  return "image/jpeg"
+}
+
+// Anthropic's own URL-based image fetcher respects Pinterest's robots.txt and
+// rejects every pin (100% failure observed in a live run: 320/320 pins across
+// 4 themes). We fetch the bytes ourselves instead and send them inline as
+// base64 — held only in memory for this one request, never written to disk,
+// storage, or any bucket, so this still satisfies "never persist third-party
+// source images" (PRD §4.1.5), just via a transient fetch instead of a URL
+// reference.
 export async function tagImage(imageUrl) {
+  const imageResponse = await fetch(imageUrl)
+  if (!imageResponse.ok) {
+    throw new Error(`Image fetch failed: ${imageResponse.status} for ${imageUrl}`)
+  }
+  const mediaType = normalizeMediaType(imageResponse.headers.get("content-type"))
+  const arrayBuffer = await imageResponse.arrayBuffer()
+  const base64Data = Buffer.from(arrayBuffer).toString("base64")
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -76,7 +100,7 @@ export async function tagImage(imageUrl) {
         {
           role: "user",
           content: [
-            { type: "image", source: { type: "url", url: imageUrl } },
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
             {
               type: "text",
               text:
