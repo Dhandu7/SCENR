@@ -1,7 +1,7 @@
 const ACTOR_ID = "epctex~pinterest-scraper"
 const APIFY_RUNS_URL = `https://api.apify.com/v2/acts/${ACTOR_ID}/runs`
 const POLL_INTERVAL_MS = 5000
-const MAX_POLL_MS = 20 * 60 * 1000 // 20 minutes; actor has been observed taking ~17 min for 80 items
+const MAX_POLL_MS = 35 * 60 * 1000 // 35 minutes; observed range is ~17-20 min for most themes, but one run exceeded the prior 20-min cap
 
 export function pickLargestImageUrl(images) {
   if (!images || typeof images !== "object") return null
