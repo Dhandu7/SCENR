@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { extractFeatures, CONTENT_CATEGORIES, normalizeMediaType } from "./extract-features.js"
+import { extractFeatures, CONTENT_CATEGORIES, normalizeMediaType, stripMarkdownFence } from "./extract-features.js"
 
 const pin = { id: "1", imageUrl: "https://example.com/a.jpg", description: "" }
 
@@ -74,4 +74,18 @@ test("normalizeMediaType falls back to image/jpeg for missing or unrecognized ty
   assert.equal(normalizeMediaType(null), "image/jpeg")
   assert.equal(normalizeMediaType(undefined), "image/jpeg")
   assert.equal(normalizeMediaType("application/octet-stream"), "image/jpeg")
+})
+
+test("stripMarkdownFence removes a ```json fence", () => {
+  const wrapped = '```json\n{"category": "scenery"}\n```'
+  assert.equal(stripMarkdownFence(wrapped), '{"category": "scenery"}')
+})
+
+test("stripMarkdownFence removes a bare ``` fence with no language tag", () => {
+  const wrapped = '```\n{"category": "scenery"}\n```'
+  assert.equal(stripMarkdownFence(wrapped), '{"category": "scenery"}')
+})
+
+test("stripMarkdownFence passes through unfenced text unchanged", () => {
+  assert.equal(stripMarkdownFence('{"category": "scenery"}'), '{"category": "scenery"}')
 })

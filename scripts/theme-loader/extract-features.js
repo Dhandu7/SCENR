@@ -120,8 +120,17 @@ export async function tagImage(imageUrl) {
     throw new Error(`Unexpected Anthropic response shape: ${JSON.stringify(body).slice(0, 500)}`)
   }
   try {
-    return JSON.parse(text)
+    return JSON.parse(stripMarkdownFence(text))
   } catch (error) {
     throw new Error(`Could not parse tag response as JSON: ${error.message}. Raw text: ${text.slice(0, 500)}`)
   }
+}
+
+// Despite being told to respond with ONLY a JSON object, Claude sometimes
+// wraps the response in a markdown code fence (```json ... ```) anyway — a
+// known, common model behavior. Strip it if present before parsing.
+export function stripMarkdownFence(text) {
+  const trimmed = text.trim()
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
+  return fenceMatch ? fenceMatch[1] : trimmed
 }
