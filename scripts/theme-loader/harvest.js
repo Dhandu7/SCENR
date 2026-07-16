@@ -25,12 +25,7 @@ export async function harvestTheme(deps, query, maxItems) {
   return pins
 }
 
-// The `run-sync-get-dataset-items` endpoint enforces a hard 300s limit on the
-// synchronous HTTP connection (Apify returns 408 past that, or the connection
-// can stall without a clean response). This actor takes ~15-20 min to harvest
-// 80 pins, well past that ceiling, so we use the async run+poll pattern instead:
-// start the run, poll its status, then fetch the dataset once it succeeds.
-export async function runApifyActor(query, maxItems) {
+async function defaultStartRun(query, maxItems) {
   const startResponse = await fetch(APIFY_RUNS_URL, {
     method: "POST",
     headers: {
@@ -42,24 +37,63 @@ export async function runApifyActor(query, maxItems) {
   if (!startResponse.ok) {
     throw new Error(`Apify run start failed: ${startResponse.status} ${await startResponse.text()}`)
   }
-  const { data: startedRun } = await startResponse.json()
+  const { data } = await startResponse.json()
+  return data
+}
+
+async function defaultPollRunStatus(runId) {
+  const pollResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+    headers: { Authorization: `Bearer ${process.env.APIFY_API_TOKEN}` },
+  })
+  if (!pollResponse.ok) {
+    throw new Error(`Apify run poll failed: ${pollResponse.status} ${await pollResponse.text()}`)
+  }
+  return (await pollResponse.json()).data
+}
+
+async function defaultFetchDatasetItems(datasetId) {
+  const itemsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?clean=true`, {
+    headers: { Authorization: `Bearer ${process.env.APIFY_API_TOKEN}` },
+  })
+  if (!itemsResponse.ok) {
+    throw new Error(`Apify dataset fetch failed: ${itemsResponse.status} ${await itemsResponse.text()}`)
+  }
+  return itemsResponse.json()
+}
+
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// The `run-sync-get-dataset-items` endpoint enforces a hard 300s limit on the
+// synchronous HTTP connection (Apify returns 408 past that, or the connection
+// can stall without a clean response). This actor takes ~15-20 min to harvest
+// 80 pins, well past that ceiling, so we use the async run+poll pattern instead:
+// start the run, poll its status, then fetch the dataset once it succeeds.
+//
+// startRun/pollRunStatus/fetchDatasetItems/sleep/now are injectable so the
+// poll loop's control flow (timeout, success, failure) can be unit tested
+// without live network calls or real timers; production callers omit `deps`
+// and get the real Apify-backed implementations.
+export async function runApifyActor(query, maxItems, deps = {}) {
+  const {
+    startRun = defaultStartRun,
+    pollRunStatus = defaultPollRunStatus,
+    fetchDatasetItems = defaultFetchDatasetItems,
+    sleep = defaultSleep,
+    now = () => Date.now(),
+  } = deps
+
+  const startedRun = await startRun(query, maxItems)
   const runId = startedRun.id
 
-  const deadline = Date.now() + MAX_POLL_MS
+  const deadline = now() + MAX_POLL_MS
   let status = startedRun.status
   let datasetId = startedRun.defaultDatasetId
   while (status === "READY" || status === "RUNNING") {
-    if (Date.now() > deadline) {
+    if (now() > deadline) {
       throw new Error(`Apify run ${runId} did not finish within ${MAX_POLL_MS / 1000}s`)
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-    const pollResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
-      headers: { Authorization: `Bearer ${process.env.APIFY_API_TOKEN}` },
-    })
-    if (!pollResponse.ok) {
-      throw new Error(`Apify run poll failed: ${pollResponse.status} ${await pollResponse.text()}`)
-    }
-    const polled = (await pollResponse.json()).data
+    await sleep(POLL_INTERVAL_MS)
+    const polled = await pollRunStatus(runId)
     status = polled.status
     datasetId = polled.defaultDatasetId
   }
@@ -68,11 +102,5 @@ export async function runApifyActor(query, maxItems) {
     throw new Error(`Apify run ${runId} ended with status ${status}`)
   }
 
-  const itemsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?clean=true`, {
-    headers: { Authorization: `Bearer ${process.env.APIFY_API_TOKEN}` },
-  })
-  if (!itemsResponse.ok) {
-    throw new Error(`Apify dataset fetch failed: ${itemsResponse.status} ${await itemsResponse.text()}`)
-  }
-  return itemsResponse.json()
+  return fetchDatasetItems(datasetId)
 }
