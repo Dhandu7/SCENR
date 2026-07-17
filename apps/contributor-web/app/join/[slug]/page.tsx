@@ -4,17 +4,9 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { confirmUpload, joinTrip, requestUpload, type JoinTripResponse } from "../../../lib/api"
 import { supabase } from "../../../lib/supabase"
+import { normalizeForUpload } from "../../../lib/heic"
 
-type UploadState = "idle" | "uploading" | "done" | "error"
-
-// Browsers often report an empty `file.type` for HEIC/HEIF; fall back to the
-// extension so those uploads aren't rejected as missing a content type.
-function inferContentType(file: File): string {
-  if (file.type) return file.type
-  const lower = file.name.toLowerCase()
-  if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic"
-  return ""
-}
+type UploadState = "idle" | "preparing" | "uploading" | "done" | "error"
 
 export default function JoinTripPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -42,12 +34,16 @@ export default function JoinTripPage() {
       .catch((error) => setJoinError(error.message))
   }, [slug])
 
-  async function handleFileSelected(file: File) {
+  async function handleFileSelected(selected: File) {
     if (!session) return
-    setUploadState("uploading")
     setUploadError(null)
     try {
-      const contentType = inferContentType(file)
+      // HEIC (iPhone default) is transcoded to JPEG here so storage only ever
+      // holds web- and vision-API-friendly images; non-HEIC files pass through.
+      setUploadState("preparing")
+      const file = await normalizeForUpload(selected)
+      setUploadState("uploading")
+      const contentType = file.type || "application/octet-stream"
       const uploadRequest = await requestUpload({
         sessionToken: session.session_token,
         fileName: file.name,
@@ -91,12 +87,16 @@ export default function JoinTripPage() {
       <h1 className="text-2xl font-bold">You&apos;re invited to {session.trip.name}</h1>
       <p className="text-gray-600">Add your photos and videos — no download needed.</p>
       <label className="cursor-pointer rounded-full bg-blue-700 px-8 py-3 font-semibold text-white">
-        {uploadState === "uploading" ? "Uploading…" : "Choose photo or video"}
+        {uploadState === "preparing"
+          ? "Preparing photo…"
+          : uploadState === "uploading"
+            ? "Uploading…"
+            : "Choose photo or video"}
         <input
           type="file"
-          accept="image/jpeg,image/png,image/heic,image/webp,video/mp4,video/quicktime"
+          accept="image/jpeg,image/png,image/heic,image/heif,image/webp,video/mp4,video/quicktime"
           className="hidden"
-          disabled={uploadState === "uploading"}
+          disabled={uploadState === "preparing" || uploadState === "uploading"}
           onChange={(event) => {
             const file = event.target.files?.[0]
             if (file) handleFileSelected(file)
