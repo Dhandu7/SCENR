@@ -9,11 +9,17 @@ export default function GeneratingScreen() {
   const { generationId } = useLocalSearchParams<{ generationId: string }>()
   const router = useRouter()
   const [status, setStatus] = useState<GenerationStatus>("pending")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
-    supabase.from("generations").select("status").eq("id", generationId).single().then(({ data }) => {
-      if (mounted && data) setStatus(data.status as GenerationStatus)
+    supabase.from("generations").select("status").eq("id", generationId).single().then(({ data, error }) => {
+      if (!mounted) return
+      if (error || !data) {
+        setErrorMessage(error?.message ?? "Couldn't load this generation.")
+        return
+      }
+      setStatus(data.status as GenerationStatus)
     })
     const channel = supabase
       .channel(`generations:id=eq.${generationId}`)
@@ -30,7 +36,7 @@ export default function GeneratingScreen() {
     if (status === "complete") router.replace(`/reveal/${generationId}`)
   }, [status, generationId, router])
 
-  if (status === "failed") {
+  if (status === "failed" || errorMessage) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorTitle}>Couldn&apos;t make this one</Text>

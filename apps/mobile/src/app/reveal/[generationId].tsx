@@ -28,8 +28,12 @@ export default function RevealScreen() {
       }
       setTripId(data.trip_id)
       const paths = data.selection.map((_: unknown, i: number) => `${data.output_url}${i}.jpg`)
-      const { data: signed } = await supabase.storage.from("renders").createSignedUrls(paths, 3600)
-      if (!mounted || !signed) return
+      const { data: signed, error: signError } = await supabase.storage.from("renders").createSignedUrls(paths, 3600)
+      if (!mounted) return
+      if (signError || !signed) {
+        setErrorMessage(signError?.message ?? "This carousel isn't ready.")
+        return
+      }
       setUrls(signed.map((s) => s.signedUrl).filter((u): u is string => !!u))
     }
     load()
