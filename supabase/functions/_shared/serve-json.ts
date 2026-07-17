@@ -8,9 +8,12 @@ export interface JsonResult {
 // Shared request envelope for the JSON edge functions: handles the CORS
 // preflight, the POST-only method guard, body parsing, and wrapping the
 // handler's {status, body} result in a Response. Each function supplies only
-// its own body→handler adapter.
+// its own body→handler adapter. The raw `req` is passed as a second argument
+// for handlers that need the request headers (e.g. to build an RLS-scoped
+// client from the Authorization header); handlers that only need the body can
+// ignore it.
 export function serveJson<T = Record<string, unknown>>(
-  handler: (body: T) => Promise<JsonResult>,
+  handler: (body: T, req: Request) => Promise<JsonResult>,
 ): void {
   Deno.serve(async (req) => {
     if (req.method === "OPTIONS") {
@@ -24,7 +27,7 @@ export function serveJson<T = Record<string, unknown>>(
     }
 
     const body = (await req.json().catch(() => ({}))) as T
-    const result = await handler(body)
+    const result = await handler(body, req)
 
     return new Response(JSON.stringify(result.body), {
       status: result.status,

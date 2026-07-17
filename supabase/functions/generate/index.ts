@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { getServiceClient } from "../_shared/supabase-client.ts"
-import { corsHeaders } from "../_shared/cors.ts"
+import { serveJson } from "../_shared/serve-json.ts"
 import { handleGenerate, type GenerateDeps, type GenerateRequest } from "./handler.ts"
 
 const RENDER_WORKER_URL = Deno.env.get("RENDER_WORKER_URL") ?? "http://localhost:8787"
@@ -64,19 +64,7 @@ function buildDeps(authHeader: string): GenerateDeps {
   }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
-  }
+serveJson<GenerateRequest>((body, req) => {
   const authHeader = req.headers.get("authorization") ?? ""
-  const body = (await req.json().catch(() => ({}))) as GenerateRequest
-  const result = await handleGenerate(buildDeps(authHeader), body)
-  return new Response(JSON.stringify(result.body), {
-    status: result.status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  })
+  return handleGenerate(buildDeps(authHeader), body)
 })

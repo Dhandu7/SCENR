@@ -53,21 +53,17 @@ export async function processGeneration(
 
     for (let i = 0; i < mediaItemIds.length; i++) {
       const storagePath = await deps.getMediaStoragePath(mediaItemIds[i])
-      if (!storagePath) {
-        await deps.updateGeneration(generationId, { status: "failed" })
-        return
-      }
-      const sourceUrl = await deps.createSignedUrl(storagePath)
-      const uploadUrl = await deps.createSignedUploadUrl(`${tripId}/${generationId}/${i}.jpg`)
-      if (!sourceUrl || !uploadUrl) {
-        await deps.updateGeneration(generationId, { status: "failed" })
-        return
-      }
+      if (!storagePath) throw new Error(`no storage path for media ${mediaItemIds[i]}`)
+
+      // Source and destination URLs are independent — sign them concurrently.
+      const [sourceUrl, uploadUrl] = await Promise.all([
+        deps.createSignedUrl(storagePath),
+        deps.createSignedUploadUrl(`${tripId}/${generationId}/${i}.jpg`),
+      ])
+      if (!sourceUrl || !uploadUrl) throw new Error(`could not sign urls for slide ${i}`)
+
       const rendered = await deps.renderPost(sourceUrl, uploadUrl)
-      if (!rendered) {
-        await deps.updateGeneration(generationId, { status: "failed" })
-        return
-      }
+      if (!rendered) throw new Error(`render failed for slide ${i}`)
     }
 
     await deps.updateGeneration(generationId, {

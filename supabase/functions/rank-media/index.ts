@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 import { getServiceClient } from "../_shared/supabase-client.ts"
-import { corsHeaders } from "../_shared/cors.ts"
+import { serveJson } from "../_shared/serve-json.ts"
 import { handleRankMedia, type RankMediaDeps, type RankMediaRequest } from "./handler.ts"
 import { scorePhoto } from "./score-photo.ts"
 
@@ -38,19 +38,7 @@ function buildDeps(authHeader: string): RankMediaDeps {
   }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "method_not_allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
-  }
+serveJson<RankMediaRequest>((body, req) => {
   const authHeader = req.headers.get("authorization") ?? ""
-  const body = (await req.json().catch(() => ({}))) as RankMediaRequest
-  const result = await handleRankMedia(buildDeps(authHeader), body)
-  return new Response(JSON.stringify(result.body), {
-    status: result.status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  })
+  return handleRankMedia(buildDeps(authHeader), body)
 })
