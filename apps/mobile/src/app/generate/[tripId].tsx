@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import Slider from "@react-native-community/slider"

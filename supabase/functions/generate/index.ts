@@ -26,7 +26,7 @@ function buildDeps(authHeader: string): GenerateDeps {
     async createGeneration(tripId, themeId, type) {
       const { data } = await supabase
         .from("generations")
-        .insert({ trip_id: tripId, type, theme_id: themeId })
+        .insert({ trip_id: tripId, type, theme_id: themeId, watermark: false })
         .select("id")
         .single()
       return data ?? null

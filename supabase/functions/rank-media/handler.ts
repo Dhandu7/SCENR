@@ -67,9 +67,9 @@ export async function handleRankMedia(deps: RankMediaDeps, req: RankMediaRequest
         is_favourite: item.is_favourite,
       }
     }
-    const url = await deps.createSignedUrl(item.storage_path)
-    if (!url) return null
     try {
+      const url = await deps.createSignedUrl(item.storage_path)
+      if (!url) return null
       const result = await deps.scoreMedia(url)
       if (!CONTENT_CATEGORIES.includes(result.content_category)) return null
       await deps.updateMediaScore(item.id, result.quality_score, result.content_category)
