@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useLocalSearchParams } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import {
   ActivityIndicator,
   FlatList,
@@ -29,6 +29,7 @@ const FILTERS: { key: PoolFilter; label: string }[] = [
 
 export default function PoolScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>()
+  const router = useRouter()
   const [items, setItems] = useState<MediaRow[]>([])
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
@@ -193,6 +194,12 @@ export default function PoolScreen() {
       </View>
 
       {poolContent}
+
+      {items.length > 0 ? (
+        <Pressable style={styles.generateButton} onPress={() => router.push(`/generate/${tripId}`)}>
+          <Text style={styles.generateButtonText}>Generate ✦</Text>
+        </Pressable>
+      ) : null}
     </View>
   )
 }
@@ -278,6 +285,8 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptySubtitle: { fontSize: 14, color: "#51596A", textAlign: "center" },
   error: { color: "#DC2626", textAlign: "center" },
+  generateButton: { position: "absolute", bottom: 24, alignSelf: "center", backgroundColor: "#1D4ED8", paddingVertical: 14, paddingHorizontal: 28, borderRadius: 999 },
+  generateButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
 })
 
 const LIVE_STATUS_META: Record<LiveStatus, { dotStyle: object; label: string }> = {
