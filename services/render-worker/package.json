@@ -1,0 +1,7 @@
+{
+  "name": "render-worker",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test", "start": "node server.js" },
+  "dependencies": { "sharp": "^0.33.5" }
+}
