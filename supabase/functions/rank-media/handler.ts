@@ -65,6 +65,8 @@ export async function handleRankMedia(deps: RankMediaDeps, req: RankMediaRequest
         storage_path: item.storage_path,
         quality_score: item.quality_score,
         is_favourite: item.is_favourite,
+        content_category: item.content_category,
+        theme_fit: null,
       }
     }
     try {
@@ -78,6 +80,8 @@ export async function handleRankMedia(deps: RankMediaDeps, req: RankMediaRequest
         storage_path: item.storage_path,
         quality_score: result.quality_score,
         is_favourite: item.is_favourite,
+        content_category: result.content_category,
+        theme_fit: null,
       }
     } catch {
       return null
