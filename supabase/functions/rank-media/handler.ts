@@ -89,7 +89,7 @@ export async function handleRankMedia(deps: RankMediaDeps, req: RankMediaRequest
     const needsEmbed = centroid != null && embedding == null
     if (needsScore || needsEmbed) {
       signedUrl = await deps.createSignedUrl(item.storage_path)
-      if (!signedUrl) return null
+      if (!signedUrl && needsScore) return null
     }
 
     if (needsScore && signedUrl) {

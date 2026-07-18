@@ -125,3 +125,19 @@ Deno.test("falls back to naive quality selection when theme has no fingerprint",
   )
   assertEquals(r.body.slots[0].media_item_id, "s1")
 })
+
+Deno.test("keeps already-scored photo when signed-URL fails for embed-only", async () => {
+  const media: MediaItemRow[] = [
+    { id: "scored", storage_path: "t/scored.jpg", quality_score: 85, content_category: "scenery", is_favourite: false, embedding: null },
+  ]
+  const r = await handleRankMedia(
+    baseDeps({
+      listTripMedia: async () => media,
+      createSignedUrl: async () => null,
+      getTheme: async () => ({ composition_template: { scenery: 1 }, centroid_vec: "[1,0,0]" }),
+    }),
+    { trip_id: "t1", slide_count: 1, theme_id: "coastal" },
+  )
+  assertEquals(r.status, 200)
+  assertEquals(r.body.slots[0].media_item_id, "scored")
+})
