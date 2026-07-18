@@ -3,6 +3,7 @@ import { getServiceClient } from "../_shared/supabase-client.ts"
 import { serveJson } from "../_shared/serve-json.ts"
 import { handleRankMedia, type RankMediaDeps, type RankMediaRequest } from "./handler.ts"
 import { scorePhoto } from "./score-photo.ts"
+import { embedPhoto } from "./embed-photo.ts"
 
 function buildDeps(authHeader: string): RankMediaDeps {
   const supabase = getServiceClient()
@@ -19,7 +20,7 @@ function buildDeps(authHeader: string): RankMediaDeps {
     async listTripMedia(tripId) {
       const { data } = await supabase
         .from("media_items")
-        .select("id, storage_path, quality_score, content_category, is_favourite")
+        .select("id, storage_path, quality_score, content_category, is_favourite, embedding")
         .eq("trip_id", tripId)
         .eq("type", "photo")
       return data ?? []
@@ -29,11 +30,17 @@ function buildDeps(authHeader: string): RankMediaDeps {
       return data?.signedUrl ?? null
     },
     scoreMedia: (imageUrl) => scorePhoto(imageUrl),
-    async updateMediaScore(mediaItemId, qualityScore, contentCategory) {
-      await supabase
-        .from("media_items")
-        .update({ quality_score: qualityScore, content_category: contentCategory })
-        .eq("id", mediaItemId)
+    embedMedia: (imageUrl) => embedPhoto(imageUrl),
+    async updateMediaCache(mediaItemId, patch) {
+      await supabase.from("media_items").update(patch).eq("id", mediaItemId)
+    },
+    async getTheme(themeId) {
+      const { data } = await supabase
+        .from("theme_fingerprints")
+        .select("composition_template, centroid_vec")
+        .eq("theme_id", themeId)
+        .maybeSingle()
+      return data ?? null
     },
   }
 }
