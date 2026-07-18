@@ -1,5 +1,5 @@
 export async function handleRender(deps, req) {
-  const { source_url, upload_url } = req
+  const { source_url, upload_url, grade } = req
   if (!source_url || !upload_url) return { status: 400, body: { success: false, error: "missing_fields" } }
 
   let sourceBuffer
@@ -11,7 +11,7 @@ export async function handleRender(deps, req) {
 
   let outputBuffer
   try {
-    outputBuffer = await deps.compose(sourceBuffer)
+    outputBuffer = await deps.compose(sourceBuffer, grade)
   } catch (error) {
     return { status: 500, body: { success: false, error: `compose_failed: ${error.message}` } }
   }

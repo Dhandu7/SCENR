@@ -31,3 +31,9 @@ test("200 on the happy path", async () => {
   assert.equal(r.status, 200)
   assert.equal(r.body.success, true)
 })
+test("forwards the grade from the request to compose", async () => {
+  let received
+  const deps = baseDeps({ compose: async (buf, grade) => { received = grade; return buf } })
+  await handleRender(deps, { source_url: "a", upload_url: "b", grade: { brightness: 1.1, saturation: 1.2 } })
+  assert.deepEqual(received, { brightness: 1.1, saturation: 1.2 })
+})
