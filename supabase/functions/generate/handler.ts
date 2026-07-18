@@ -1,3 +1,5 @@
+import { gradeForTheme, type ThemeGrade } from "../_shared/theme-grades.ts"
+
 const MAX_SLIDES = 20
 
 export interface GenerateDeps {
@@ -7,7 +9,7 @@ export interface GenerateDeps {
   getMediaStoragePath(mediaItemId: string): Promise<string | null>
   createSignedUrl(path: string): Promise<string | null>
   createSignedUploadUrl(path: string): Promise<string | null>
-  renderPost(sourceUrl: string, uploadUrl: string): Promise<boolean>
+  renderPost(sourceUrl: string, uploadUrl: string, grade: ThemeGrade | null): Promise<boolean>
   waitUntil(promise: Promise<void>): void
 }
 
@@ -38,7 +40,7 @@ export async function handleGenerate(deps: GenerateDeps, req: GenerateRequest): 
   const generation = await deps.createGeneration(trip_id, theme_id ?? null, type)
   if (!generation) return { status: 500, body: { error: "generation_create_failed" } }
 
-  deps.waitUntil(processGeneration(deps, generation.id, trip_id, media_item_ids))
+  deps.waitUntil(processGeneration(deps, generation.id, trip_id, media_item_ids, theme_id ?? null))
   return { status: 200, body: { generation_id: generation.id } }
 }
 
@@ -47,9 +49,11 @@ export async function processGeneration(
   generationId: string,
   tripId: string,
   mediaItemIds: string[],
+  themeId: string | null,
 ): Promise<void> {
   try {
     await deps.updateGeneration(generationId, { status: "processing" })
+    const grade = gradeForTheme(themeId)
 
     for (let i = 0; i < mediaItemIds.length; i++) {
       const storagePath = await deps.getMediaStoragePath(mediaItemIds[i])
@@ -62,7 +66,7 @@ export async function processGeneration(
       ])
       if (!sourceUrl || !uploadUrl) throw new Error(`could not sign urls for slide ${i}`)
 
-      const rendered = await deps.renderPost(sourceUrl, uploadUrl)
+      const rendered = await deps.renderPost(sourceUrl, uploadUrl, grade)
       if (!rendered) throw new Error(`render failed for slide ${i}`)
     }
 

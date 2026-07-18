@@ -9,7 +9,7 @@ function baseDeps(overrides: Partial<GenerateDeps> = {}): GenerateDeps {
     getMediaStoragePath: async (id) => `t1/${id}.jpg`,
     createSignedUrl: async () => "https://x/get",
     createSignedUploadUrl: async () => "https://x/put",
-    renderPost: async () => true,
+    renderPost: async (_s, _u, _grade) => true,
     waitUntil: () => {},
     ...overrides,
   }
@@ -52,7 +52,7 @@ Deno.test("processGeneration renders every slide and completes with ordered sele
     renderPost: async (source, upload) => { rendered.push({ source, upload }); return true },
     updateGeneration: async (_id, patch) => { updates.push(patch) },
   })
-  await processGeneration(deps, "gen1", "t1", ["mA", "mB", "mC"])
+  await processGeneration(deps, "gen1", "t1", ["mA", "mB", "mC"], null)
   assertEquals(rendered.length, 3)
   assertEquals(rendered.map((r) => r.upload), ["put:t1/gen1/0.jpg", "put:t1/gen1/1.jpg", "put:t1/gen1/2.jpg"])
   const final = updates[updates.length - 1]
@@ -66,7 +66,7 @@ Deno.test("processGeneration fails if any slide's media has no storage path", as
     getMediaStoragePath: async (id) => (id === "bad" ? null : `t1/${id}.jpg`),
     updateGeneration: async (_id, patch) => { updates.push(patch) },
   })
-  await processGeneration(deps, "gen1", "t1", ["ok", "bad"])
+  await processGeneration(deps, "gen1", "t1", ["ok", "bad"], null)
   assertEquals(updates[updates.length - 1].status, "failed")
 })
 Deno.test("processGeneration fails when a render fails", async () => {
@@ -75,7 +75,7 @@ Deno.test("processGeneration fails when a render fails", async () => {
     renderPost: async () => false,
     updateGeneration: async (_id, patch) => { updates.push(patch) },
   })
-  await processGeneration(deps, "gen1", "t1", ["m1"])
+  await processGeneration(deps, "gen1", "t1", ["m1"], null)
   assertEquals(updates[updates.length - 1].status, "failed")
 })
 Deno.test("processGeneration fails gracefully on an unexpected exception", async () => {
@@ -84,6 +84,21 @@ Deno.test("processGeneration fails gracefully on an unexpected exception", async
     getMediaStoragePath: async () => { throw new Error("db down") },
     updateGeneration: async (_id, patch) => { updates.push(patch) },
   })
-  await processGeneration(deps, "gen1", "t1", ["m1"])
+  await processGeneration(deps, "gen1", "t1", ["m1"], null)
   assertEquals(updates[updates.length - 1].status, "failed")
+})
+Deno.test("threads the theme's grade into every renderPost call", async () => {
+  const grades: unknown[] = []
+  const deps = baseDeps({ renderPost: async (_s, _u, grade) => { grades.push(grade); return true } })
+  await processGeneration(deps, "gen1", "t1", ["m1", "m2"], "golden_hour")
+  assertEquals(grades.length, 2)
+  assertEquals((grades[0] as { brightness: number }).brightness, 1.06)
+  assertEquals(grades[0], grades[1])
+})
+
+Deno.test("passes a null grade for an unknown/absent theme", async () => {
+  let received: unknown = "unset"
+  const deps = baseDeps({ renderPost: async (_s, _u, grade) => { received = grade; return true } })
+  await processGeneration(deps, "gen1", "t1", ["m1"], null)
+  assertEquals(received, null)
 })

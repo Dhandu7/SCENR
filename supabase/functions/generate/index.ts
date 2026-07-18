@@ -46,11 +46,11 @@ function buildDeps(authHeader: string): GenerateDeps {
       const { data } = await supabase.storage.from("renders").createSignedUploadUrl(path)
       return data?.signedUrl ?? null
     },
-    async renderPost(sourceUrl, uploadUrl) {
+    async renderPost(sourceUrl, uploadUrl, grade) {
       const response = await fetch(`${RENDER_WORKER_URL}/render`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source_url: sourceUrl, upload_url: uploadUrl }),
+        body: JSON.stringify({ source_url: sourceUrl, upload_url: uploadUrl, ...(grade ? { grade } : {}) }),
       })
       if (!response.ok) return false
       const body = await response.json().catch(() => ({ success: false }))
