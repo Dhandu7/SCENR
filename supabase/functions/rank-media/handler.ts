@@ -92,24 +92,31 @@ export async function handleRankMedia(deps: RankMediaDeps, req: RankMediaRequest
       if (!signedUrl && needsScore) return null
     }
 
+    // The score and embed calls are independent (Haiku vs. Voyage) — run them
+    // concurrently and preserve each branch's own failure semantics below.
+    const [scoreOutcome, embedOutcome] = await Promise.all([
+      needsScore && signedUrl
+        ? deps.scoreMedia(signedUrl).then((r) => ({ ok: true as const, r })).catch(() => ({ ok: false as const }))
+        : Promise.resolve(null),
+      needsEmbed && signedUrl
+        ? deps.embedMedia(signedUrl).then((r) => ({ ok: true as const, r })).catch(() => ({ ok: false as const }))
+        : Promise.resolve(null),
+    ])
+
     if (needsScore && signedUrl) {
-      try {
-        const result = await deps.scoreMedia(signedUrl)
-        if (!CONTENT_CATEGORIES.includes(result.content_category)) return null
-        quality = result.quality_score
-        category = result.content_category
-        patch.quality_score = quality
-        patch.content_category = category
-      } catch {
-        return null // no usable score -> drop the photo
-      }
+      if (!scoreOutcome || !scoreOutcome.ok) return null // no usable score -> drop the photo
+      if (!CONTENT_CATEGORIES.includes(scoreOutcome.r.content_category)) return null
+      quality = scoreOutcome.r.quality_score
+      category = scoreOutcome.r.content_category
+      patch.quality_score = quality
+      patch.content_category = category
     }
 
     if (needsEmbed && signedUrl) {
-      try {
-        embedding = await deps.embedMedia(signedUrl)
+      if (embedOutcome && embedOutcome.ok) {
+        embedding = embedOutcome.r
         patch.embedding = JSON.stringify(embedding)
-      } catch {
+      } else {
         embedding = null // embedding is optional — keep the photo, theme_fit stays null
       }
     }

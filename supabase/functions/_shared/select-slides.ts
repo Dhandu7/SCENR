@@ -21,6 +21,35 @@ export interface SlideSelection {
 
 export const FAVOURITE_RESERVE_CAP = 2
 
+// Shared setup for both selection strategies: reserve up to FAVOURITE_RESERVE_CAP of
+// the organizer's top-scored favourites regardless of category (guaranteed inclusions),
+// and hand back the pool minus those reserved so each strategy can fill the rest its
+// own way.
+function reserveFavourites(
+  byQuality: ScoredMedia[],
+  n: number,
+): { reserved: ScoredMedia[]; reservedIds: Set<string>; rest: ScoredMedia[] } {
+  const reserved = byQuality.filter((p) => p.is_favourite).slice(0, Math.min(FAVOURITE_RESERVE_CAP, n))
+  const reservedIds = new Set(reserved.map((p) => p.media_item_id))
+  const rest = byQuality.filter((p) => !reservedIds.has(p.media_item_id))
+  return { reserved, reservedIds, rest }
+}
+
+// Shared assembly for both selection strategies: reserved slots first, then fill slots,
+// with `bench` holding everything unused (quality desc) so the client can swap
+// non-reserved slots without another round-trip. Reserved (favourite) slots are not
+// swappable.
+function assembleSelection(reserved: ScoredMedia[], fill: ScoredMedia[], byQuality: ScoredMedia[]): SlideSelection {
+  const slots: Slot[] = [
+    ...reserved.map((p) => ({ ...p, reserved: true })),
+    ...fill.map((p) => ({ ...p, reserved: false })),
+  ]
+  const selectedIds = new Set(slots.map((s) => s.media_item_id))
+  const bench = byQuality.filter((p) => !selectedIds.has(p.media_item_id))
+
+  return { slots, bench, slide_count: slots.length }
+}
+
 // Bounded-hybrid selection (Day 4 naive fill). See project_scenr_generate_selection:
 // reserve up to 2 of the organizer's top-scored favourites regardless of category
 // (guaranteed inclusions), then fill the remaining slots by top quality_score. The
@@ -33,19 +62,10 @@ export function selectSlides(pool: ScoredMedia[], slideCount: number): SlideSele
   const n = Math.max(1, Math.min(slideCount, pool.length))
   const byQuality = [...pool].sort((a, b) => b.quality_score - a.quality_score)
 
-  const reserved = byQuality.filter((p) => p.is_favourite).slice(0, Math.min(FAVOURITE_RESERVE_CAP, n))
-  const reservedIds = new Set(reserved.map((p) => p.media_item_id))
+  const { reserved, rest } = reserveFavourites(byQuality, n)
+  const fill = rest.slice(0, n - reserved.length)
 
-  const fill = byQuality.filter((p) => !reservedIds.has(p.media_item_id)).slice(0, n - reserved.length)
-  const selectedIds = new Set([...reservedIds, ...fill.map((p) => p.media_item_id)])
-
-  const slots: Slot[] = [
-    ...reserved.map((p) => ({ ...p, reserved: true })),
-    ...fill.map((p) => ({ ...p, reserved: false })),
-  ]
-  const bench = byQuality.filter((p) => !selectedIds.has(p.media_item_id))
-
-  return { slots, bench, slide_count: slots.length }
+  return assembleSelection(reserved, fill, byQuality)
 }
 
 // Distribute `count` slots across categories proportional to `template`, restricted
@@ -65,37 +85,24 @@ export function allocateSlots(
 
   const alloc: Record<string, number> = {}
   for (const c of present) alloc[c] = 0
-  let remaining = target
-  let eligible = [...present]
 
-  while (remaining > 0 && eligible.length > 0) {
-    const weightSum = eligible.reduce((s, c) => s + template[c], 0)
-    const ideal = eligible.map((c) => ({ c, want: (template[c] / weightSum) * remaining }))
-    let handed = 0
-    for (const { c, want } of ideal) {
-      const add = Math.min(Math.floor(want), categoryCounts[c] - alloc[c])
-      alloc[c] += add
-      handed += add
+  const weightSum = present.reduce((s, c) => s + template[c], 0)
+  const ideal = present.map((c) => ({ c, want: (template[c] / weightSum) * target }))
+  let handed = 0
+  for (const { c, want } of ideal) {
+    const add = Math.min(Math.floor(want), categoryCounts[c])
+    alloc[c] += add
+    handed += add
+  }
+  let leftover = target - handed
+  const byFraction = ideal.map(({ c, want }) => ({ c, frac: want - Math.floor(want) })).sort((a, b) => b.frac - a.frac)
+  while (leftover > 0) {
+    let progressed = false
+    for (const { c } of byFraction) {
+      if (leftover === 0) break
+      if (alloc[c] < categoryCounts[c]) { alloc[c] += 1; leftover -= 1; progressed = true }
     }
-    let leftover = remaining - handed
-    const byFraction = ideal
-      .map(({ c, want }) => ({ c, frac: want - Math.floor(want) }))
-      .sort((a, b) => b.frac - a.frac)
-    let progressed = true
-    while (leftover > 0 && progressed) {
-      progressed = false
-      for (const { c } of byFraction) {
-        if (leftover === 0) break
-        if (alloc[c] < categoryCounts[c]) {
-          alloc[c] += 1
-          leftover -= 1
-          progressed = true
-        }
-      }
-    }
-    remaining = leftover
-    eligible = eligible.filter((c) => alloc[c] < categoryCounts[c])
-    if (!progressed && remaining > 0 && eligible.length === 0) break
+    if (!progressed) break
   }
 
   for (const c of Object.keys(alloc)) if (alloc[c] === 0) delete alloc[c]
@@ -118,9 +125,7 @@ export function selectSlidesByComposition(
   const n = Math.max(1, Math.min(slideCount, pool.length))
   const byQuality = [...pool].sort((a, b) => b.quality_score - a.quality_score)
 
-  const reserved = byQuality.filter((p) => p.is_favourite).slice(0, Math.min(FAVOURITE_RESERVE_CAP, n))
-  const reservedIds = new Set(reserved.map((p) => p.media_item_id))
-  const rest = byQuality.filter((p) => !reservedIds.has(p.media_item_id))
+  const { reserved, rest } = reserveFavourites(byQuality, n)
   const remaining = n - reserved.length
 
   const scoreOf = (p: ScoredMedia) => combinedScore(p.theme_fit ?? 0, p.quality_score)
@@ -151,12 +156,5 @@ export function selectSlidesByComposition(
     }
   }
 
-  const slots: Slot[] = [
-    ...reserved.map((p) => ({ ...p, reserved: true })),
-    ...fill.map((p) => ({ ...p, reserved: false })),
-  ]
-  const selectedIds = new Set(slots.map((s) => s.media_item_id))
-  const bench = byQuality.filter((p) => !selectedIds.has(p.media_item_id))
-
-  return { slots, bench, slide_count: slots.length }
+  return assembleSelection(reserved, fill, byQuality)
 }

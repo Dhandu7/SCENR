@@ -5,7 +5,14 @@ import Slider from "@react-native-community/slider"
 import { supabase } from "../../lib/supabase"
 
 interface ThemeOption { theme_id: string; display_name: string }
-interface ScoredMedia { media_item_id: string; storage_path: string; quality_score: number; is_favourite: boolean }
+interface ScoredMedia {
+  media_item_id: string
+  storage_path: string
+  quality_score: number
+  is_favourite: boolean
+  content_category: string
+  theme_fit: number | null
+}
 interface Slot extends ScoredMedia { reserved: boolean }
 interface RankResult { slots: Slot[]; bench: ScoredMedia[]; slide_count: number }
 
