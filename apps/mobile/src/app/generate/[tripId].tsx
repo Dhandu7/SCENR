@@ -61,7 +61,7 @@ export default function GenerateScreen() {
     setBusy(true)
     setErrorMessage(null)
     const { data, error } = await supabase.functions.invoke<RankResult>("rank-media", {
-      body: { trip_id: tripId, slide_count: slideCount },
+      body: { trip_id: tripId, slide_count: slideCount, theme_id: selectedThemeId },
     })
     setBusy(false)
     if (error || !data) { setErrorMessage(error?.message ?? "Couldn't build a selection."); return }
