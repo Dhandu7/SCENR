@@ -1,8 +1,8 @@
 # Day 4 Report — Carousel Generate Pipeline
 
 **Plan:** [docs/superpowers/plans/2026-07-16-day4-generate.md](../superpowers/plans/2026-07-16-day4-generate.md)
-**Commits:** `e5815cb..8a64924` (Day 4 feature commits `3931aff..8a64924`, 8 commits)
-**Flow followed:** `/grill-me` (feature reframe) → `/writing-plans` → `/subagent-driven-development` → `/simplify` → `/run` → `/security-review`
+**Commits:** `e5815cb..8a64924` (Day 4 feature commits `3931aff..8a64924`, 8 commits) + post-report HEIC follow-up `e3584f6` and EOD correction `db3a58e`
+**Flow followed:** `/grill-me` (feature reframe) → `/writing-plans` → `/subagent-driven-development` → `/simplify` → `/run` → `/security-review` → HEIC follow-up fix
 
 ## Completed
 
@@ -15,6 +15,7 @@ The "naive generate" walking-skeleton slice from the plan's Days 4-6 milestone, 
 - **Mobile screens** — Generate Setup (theme chips from `theme_fingerprints` + a 1–20 slide slider, 7–12 recommended, honest "fewer slides = weaker theming" note) → Preview filmstrip with **per-slide swap** (★ favourite-reserved slides not swappable; non-reserved pull the next-best from the bench) → Generating (Realtime-driven) → swipeable Reveal carousel with a slide counter. Plus a "Generate ✦" CTA on the pool screen.
 - **`/simplify` pass** — 4 parallel cleanup agents; fixed 3 high-consensus items: both new `index.ts` now reuse the shared `serveJson` envelope (extended backward-compatibly to pass `req`) instead of hand-rolling it; `processGeneration`'s 3 duplicated "set failed + return" blocks collapsed to throws handled by the single existing catch, and its two independent signed-URL calls now sign concurrently; corrected the `compose.js` "center-crop" comment to describe the actual attention crop.
 - **`/security-review`** — no HIGH/MEDIUM findings met the confidence bar. RLS-scoped ownership gates verified correct end-to-end, no injection surface, no secret logging. One below-threshold pre-hosting note (render-worker auth) recorded in gaps.
+- **Follow-up fix (post-report, `e3584f6`)** — closed the HEIC scoring gap `/run` surfaced (the day's #1 real-world limitation) by transcoding HEIC/HEIF→JPEG **client-side at upload** in contributor-web (`lib/heic.ts`, `heic2any`, lazy-imported). Storage now only ever holds JPEG/PNG/etc., so scoring *and* rendering are protected, and it also resolves the Day 2 "HEIC won't render in a browser" gap. Verified live: a real Toronto HEIC transcoded to JPEG scores `75/group` where the raw HEIC 400s. The mobile app has no uploader, so no change there. This also uncovered — and corrected in this report — that the env's `sharp` build has no HEIF decoder (so HEIC broke rendering too, not just scoring).
 
 ## Fixed
 
@@ -37,7 +38,7 @@ Ran without Docker/Supabase-CLI by driving the actual services directly against 
 
 ## Assumptions / gaps (accepted or deferred, not fixed)
 
-- **HEIC scoring gap (highest priority follow-up)** — the biggest real-world limitation: iPhone HEIC uploads can't be scored by Anthropic, so they're silently excluded from carousels (or block generation entirely on a HEIC-only trip). Recommended fix: **transcode HEIC→JPEG at upload time** (contributor-web + mobile ingestion) so every stored image is web- and API-friendly — this also resolves the pre-existing "HEIC doesn't render in a browser" gap from Day 2. A per-consumer transcode is awkward (the Deno edge function can't run `sharp`); fixing at ingestion is the right altitude. Flagged as a background task.
+- ~~**HEIC scoring gap**~~ — **RESOLVED** in follow-up `e3584f6` (see the Completed "Follow-up fix" note and the Fixed table). Transcode HEIC→JPEG at upload in contributor-web; the mobile app has no uploader yet, so when one is built it must transcode there too (`expo-image-manipulator`).
 - **render-worker not hosted** — the deployed `generate` has no reachable `RENDER_WORKER_URL`, so prod renders fail until render-worker is deployed to a host (Fly.io/Render.com — an account-level action). Verified locally instead.
 - **render-worker has no auth (pre-hosting hardening)** — safe today (unhosted, single trusted caller), but before it's network-reachable it needs a shared-secret/bearer check between `generate` and render-worker and/or a Supabase-storage host allowlist, or it's an open SSRF/exfil proxy. Below the security-review confidence bar precisely because it isn't reachable yet; must be closed as part of hosting it.
 - **`ANTHROPIC_API_KEY` not set as a Supabase edge secret** — the deployed `rank-media` can't score until the user sets this secret on the project (a credential action reserved for the user). Local `/run` used the repo `.env`.
