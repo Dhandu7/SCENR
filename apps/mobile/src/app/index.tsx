@@ -25,6 +25,11 @@ export default function LandingScreen() {
       <Pressable style={styles.primaryButton} onPress={handleStartTrip}>
         <Text style={styles.primaryButtonText}>Start a Trip</Text>
       </Pressable>
+      {session ? (
+        <Pressable style={styles.secondaryButton} onPress={() => router.push("/trips")}>
+          <Text style={styles.secondaryButtonText}>My Trips</Text>
+        </Pressable>
+      ) : null}
     </View>
   )
 }
@@ -35,4 +40,6 @@ const styles = StyleSheet.create({
   tagline: { fontSize: 16, textAlign: "center", color: "#51596A" },
   primaryButton: { backgroundColor: "#1D4ED8", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 999, marginTop: 16 },
   primaryButtonText: { color: "white", fontSize: 16, fontWeight: "700" },
+  secondaryButton: { borderWidth: 1, borderColor: "#1D4ED8", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 999 },
+  secondaryButtonText: { color: "#1D4ED8", fontSize: 16, fontWeight: "700" },
 })
