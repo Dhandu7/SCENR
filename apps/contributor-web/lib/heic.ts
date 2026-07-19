@@ -3,6 +3,11 @@
 // That silently drops HEIC uploads from carousel scoring/selection downstream, so
 // we transcode HEIC/HEIF -> JPEG at ingestion — the one place every consumer
 // benefits — before the file ever reaches storage.
+//
+// Decoder note: the original heic2any@0.0.4 build shipped an old libheif that throws
+// "ERR_LIBHEIF format not supported" on real modern iPhone HEICs (HEVC-coded) — proven
+// against a real device file in a browser. We use heic-to (maintained, current libheif),
+// which decodes the same file to a valid JPEG.
 
 // Browsers frequently report an empty `type` for a HEIC file, so fall back to the
 // filename extension.
@@ -20,19 +25,18 @@ export function toJpegName(name: string): string {
   return name.includes(".") ? name : `${name}.jpg`
 }
 
-type HeicConverter = (opts: { blob: Blob; toType: string; quality: number }) => Promise<Blob | Blob[]>
+type HeicConverter = (opts: { blob: Blob; type: string; quality: number }) => Promise<Blob>
 
 // Return a JPEG File for HEIC/HEIF input; pass anything else through untouched.
-// heic2any is a ~1.5MB WASM bundle, so it is dynamically imported only when a HEIC
-// is actually selected — normal JPEG/PNG uploads never pay that cost. The converter
-// is injectable so the conversion branch can be exercised without the real WASM.
+// heic-to bundles a ~1.5MB libheif WASM, so it is dynamically imported only when a
+// HEIC is actually selected — normal JPEG/PNG uploads never pay that cost. The
+// converter is injectable so the conversion branch can be exercised without the WASM.
 export async function normalizeForUpload(
   file: File,
   convert?: HeicConverter,
 ): Promise<File> {
   if (!isHeic(file)) return file
-  const heic2any = convert ?? ((await import("heic2any")).default as unknown as HeicConverter)
-  const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 })
-  const blob = Array.isArray(converted) ? converted[0] : converted
-  return new File([blob], toJpegName(file.name), { type: "image/jpeg" })
+  const heicTo = convert ?? ((await import("heic-to")).heicTo as unknown as HeicConverter)
+  const jpegBlob = await heicTo({ blob: file, type: "image/jpeg", quality: 0.9 })
+  return new File([jpegBlob], toJpegName(file.name), { type: "image/jpeg" })
 }
