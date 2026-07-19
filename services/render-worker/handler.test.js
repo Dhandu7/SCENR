@@ -37,3 +37,25 @@ test("forwards the grade from the request to compose", async () => {
   await handleRender(deps, { source_url: "a", upload_url: "b", grade: { brightness: 1.1, saturation: 1.2 } })
   assert.deepEqual(received, { brightness: 1.1, saturation: 1.2 })
 })
+
+test("no auth check when no secret is configured (local dev stays unauthenticated)", async () => {
+  const d = baseDeps({ expectedSecret: undefined })
+  const r = await handleRender(d, { source_url: "a", upload_url: "b" }, undefined)
+  assert.equal(r.status, 200)
+})
+test("401 when a secret is configured and the request provides none", async () => {
+  const d = baseDeps({ expectedSecret: "s3cret" })
+  const r = await handleRender(d, { source_url: "a", upload_url: "b" }, undefined)
+  assert.equal(r.status, 401)
+  assert.equal(r.body.success, false)
+})
+test("401 when a secret is configured and the provided one doesn't match", async () => {
+  const d = baseDeps({ expectedSecret: "s3cret" })
+  const r = await handleRender(d, { source_url: "a", upload_url: "b" }, "wrong")
+  assert.equal(r.status, 401)
+})
+test("200 when a secret is configured and the provided one matches", async () => {
+  const d = baseDeps({ expectedSecret: "s3cret" })
+  const r = await handleRender(d, { source_url: "a", upload_url: "b" }, "s3cret")
+  assert.equal(r.status, 200)
+})

@@ -4,6 +4,7 @@ import { serveJson } from "../_shared/serve-json.ts"
 import { handleGenerate, type GenerateDeps, type GenerateRequest } from "./handler.ts"
 
 const RENDER_WORKER_URL = Deno.env.get("RENDER_WORKER_URL") ?? "http://localhost:8787"
+const RENDER_WORKER_SECRET = Deno.env.get("RENDER_WORKER_SECRET")
 
 function buildDeps(authHeader: string): GenerateDeps {
   const supabase = getServiceClient()
@@ -49,7 +50,10 @@ function buildDeps(authHeader: string): GenerateDeps {
     async renderPost(sourceUrl, uploadUrl, grade) {
       const response = await fetch(`${RENDER_WORKER_URL}/render`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(RENDER_WORKER_SECRET ? { "x-render-worker-secret": RENDER_WORKER_SECRET } : {}),
+        },
         body: JSON.stringify({ source_url: sourceUrl, upload_url: uploadUrl, ...(grade ? { grade } : {}) }),
       })
       if (!response.ok) return false
