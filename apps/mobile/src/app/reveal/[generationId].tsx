@@ -15,8 +15,10 @@ export default function RevealScreen() {
   const [caption, setCaption] = useState<string>("")
   const [captionLoading, setCaptionLoading] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [captionError, setCaptionError] = useState<string | null>(null)
 
   async function generateCaption() {
+    setCaptionError(null)
     setCaptionLoading(true)
     const { data, error } = await supabase.functions.invoke<{ caption: string }>("caption", {
       body: { generation_id: generationId },
@@ -25,16 +27,20 @@ export default function RevealScreen() {
     if (!error && data?.caption) {
       setCaption(data.caption)
       setDirty(false)
+    } else {
+      setCaptionError(error?.message ?? "Couldn't write a caption.")
     }
   }
 
   async function saveCaption() {
+    setCaptionError(null)
     setCaptionLoading(true)
     const { error } = await supabase.functions.invoke("caption", {
       body: { generation_id: generationId, custom_text: caption },
     })
     setCaptionLoading(false)
     if (!error) setDirty(false)
+    else setCaptionError(error?.message ?? "Couldn't save your caption.")
   }
 
   useEffect(() => {
@@ -108,6 +114,7 @@ export default function RevealScreen() {
             </Pressable>
           ) : null}
         </View>
+        {captionError ? <Text style={styles.captionError}>{captionError}</Text> : null}
       </View>
       <Pressable style={styles.secondaryButton} onPress={() => tripId && router.replace(`/pool/${tripId}`)}>
         <Text style={styles.secondaryButtonText}>Back to pool</Text>
@@ -128,4 +135,5 @@ const styles = StyleSheet.create({
   secondaryButton: { borderWidth: 1, borderColor: "#1D4ED8", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 999 },
   secondaryButtonText: { color: "#1D4ED8", fontSize: 16, fontWeight: "700" },
   error: { color: "#DC2626", textAlign: "center" },
+  captionError: { color: "#DC2626", fontSize: 13 },
 })
